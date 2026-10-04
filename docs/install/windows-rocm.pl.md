@@ -65,6 +65,8 @@ obejścia przez zmienne środowiskowe.
 - Świeże instalacje VoxCPM2 i CosyVoice mają osobne receptury ROCm i kontrole GPU.
   Ukończone instalacje CPU nie są automatycznie konwertowane ani fałszywie
   oznaczane jako przyspieszone. Migracja i ograniczenia są w opisach silników.
+  Znaczniki ukończenia są zapisywane atomowo; częściowy zapis nie oznaczy
+  instalacji jako poprawnej ani nie zablokuje jawnego ponowienia.
 - Sortformer przez audio.cpp używa Vulkan, nie HIP. Wskaźnik gotowości odnosi
   się do wybranego silnika, a nie innego wpisu katalogu.
 - Przygotowanie danych na CPU i opisane ścieżki rezerwowe pozostają możliwe,

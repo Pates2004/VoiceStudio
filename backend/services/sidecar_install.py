@@ -1267,6 +1267,19 @@ def _install_marker_valid(spec: SidecarSpec, checkout: Path) -> bool:
         return False
 
 
+def _write_install_marker(checkout: Path, marker_text: str) -> None:
+    """Publish readiness only after the complete marker has been written."""
+    with tempfile.NamedTemporaryFile(
+        dir=checkout, prefix=f"{_INSTALL_COMPLETE_MARKER}.", delete=False,
+    ) as marker_file:
+        temporary = Path(marker_file.name)
+    try:
+        temporary.write_text(marker_text, encoding="utf-8")
+        temporary.replace(checkout / _INSTALL_COMPLETE_MARKER)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _persist(spec: SidecarSpec) -> None:
     """Point the engine at the managed checkout: process env for immediate
     use, prefs.json ``env.*`` for the next launch, and invalidate the
@@ -1841,7 +1854,7 @@ def _step_verify(spec: SidecarSpec, job: dict) -> None:
     if windows_rocm:
         marker_text += f"{_VOXCPM2_WINDOWS_ROCM_VERIFIED}\n"
     if not cosyvoice_rocm:
-        (checkout / _INSTALL_COMPLETE_MARKER).write_text(marker_text, encoding="utf-8")
+        _write_install_marker(checkout, marker_text)
     _log(job, "Venv verified.")
 
 
@@ -1998,9 +2011,9 @@ def _step_persist(spec: SidecarSpec, job: dict) -> None:
                 'then retry. The managed install is not marked ready until real '
                 'model speech runs on the Radeon.',
             )
-        (checkout / _INSTALL_COMPLETE_MARKER).write_text(
+        _write_install_marker(
+            checkout,
             f'{spec.probe_module}\n{spec.install_revision}\n{_COSYVOICE_WINDOWS_ROCM_VERIFIED}\n',
-            encoding='utf-8',
         )
     _persist(spec)
     _job_step(job, "persist")["detail"] = f"{spec.env_var}={managed_checkout(spec)}"

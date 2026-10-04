@@ -62,6 +62,8 @@ No development SDK dependency or production environment workaround is added.
   execution. An audio-adapter pass does not prove GPU kernels or diarization.
 - Fresh VoxCPM2 and CosyVoice installs have separate ROCm recipes and GPU checks.
   Complete CPU installations are not silently converted or labelled accelerated.
+  Completion markers are written atomically; a partial write cannot report a
+  successful install or prevent an explicit retry.
   See the engine guides for migration and remaining limitations.
 - Sortformer through audio.cpp uses Vulkan, not HIP. Its readiness badge follows
   the selected backend, not an unrelated catalogue model.

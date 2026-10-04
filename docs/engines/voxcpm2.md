@@ -93,9 +93,12 @@ same-origin sidecar API, verified GPU execution and synthesized Polish audio.
 Other Radeon cards and a click on the Model Catalogue Install button are not
 yet validated. An existing CPU
 sidecar remains usable and is reported as CPU, not GPU accelerated.
-On NVIDIA hosts it installs the CUDA build of PyTorch; it installs the CPU build on
-NVIDIA GPU, the CPU build on other Windows and Linux machines, and the
-regular build on Apple Silicon.
+Outside the native Windows ROCm path, it installs CUDA PyTorch on NVIDIA hosts,
+CPU PyTorch on other Windows and Linux machines, and regular PyTorch on Apple Silicon.
+
+The completion marker is published atomically after verification. An interrupted
+marker write cannot expose an empty or partial marker as a completed CPU or GPU
+install. If writing fails, retry Install; existing model weights remain reusable.
 
 Nothing it installs touches VoiceStudio itself or any other engine, and
 **Uninstall** in the same row removes only that folder. An existing

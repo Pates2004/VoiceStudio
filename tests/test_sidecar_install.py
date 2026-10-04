@@ -7,6 +7,7 @@ cover: the happy path, the disk-space preflight, the git-absent tarball
 fallback, partial-install repair, already-installed detection, uninstall
 safety (never delete a user's own clone), and the router wiring.
 """
+import errno
 import io
 import os
 import subprocess
@@ -1853,6 +1854,79 @@ def test_voxcpm2_non_windows_rocm_recipe_and_probe_unchanged(monkeypatch, family
     monkeypatch.setattr(si.subprocess, 'run', fake_probe)
     si._step_verify(spec, job)
     assert probes[0][2] == 'import voxcpm'
+
+
+@pytest.mark.parametrize("engine_id", ["voxcpm2", "cosyvoice"])
+@pytest.mark.parametrize("partial_marker", ["empty", "legacy"])
+@pytest.mark.parametrize("failure", [None, "write", "replace"])
+def test_windows_rocm_completion_marker_is_published_atomically(
+    monkeypatch: pytest.MonkeyPatch,
+    engine_id: str,
+    partial_marker: str,
+    failure: str | None,
+) -> None:
+    spec = si.get_spec(engine_id)
+    monkeypatch.setattr(si.sys, "platform", "win32")
+    monkeypatch.setattr(si, "_host_family", lambda: "rocm")
+    monkeypatch.setattr(si, "DATA_DIR", str(Path(si.DATA_DIR) / "GPU \u0141"))
+    checkout = si.managed_checkout(spec)
+    python = si._venv_python(checkout / ".venv")
+    python.parent.mkdir(parents=True)
+    python.write_text("verified venv Python")
+    monkeypatch.setenv(spec.env_var, str(checkout))
+    monkeypatch.setattr(si, "_source_present", lambda *args: True)
+    monkeypatch.setattr(si, "_weights_present", lambda *args: True)
+    monkeypatch.setattr(si, "_persist", lambda spec: None)
+    monkeypatch.setattr(si, "_run_logged", lambda *args, **kwargs: 0)
+    _stub_verify_ok(monkeypatch)
+    marker = checkout / si._INSTALL_COMPLETE_MARKER
+    legacy_marker = f"{spec.probe_module}\n"
+    if spec.install_revision:
+        legacy_marker += f"{spec.install_revision}\n"
+    prefix = legacy_marker if partial_marker == "legacy" else ""
+    observed_readiness = []
+    write_text = Path.write_text
+    replace = Path.replace
+
+    def write_marker(path: Path, text: str, *args, **kwargs) -> int:
+        if path.parent == checkout and path.name.startswith(si._INSTALL_COMPLETE_MARKER):
+            write_text(path, prefix, *args, **kwargs)
+            observed_readiness.append((si._healthy(spec), si.engine_venv_python(spec.env_var)))
+            if failure == "write":
+                raise OSError(errno.ENOSPC, "No space left on device")
+        return write_text(path, text, *args, **kwargs)
+
+    def replace_marker(path: Path, target: Path) -> Path:
+        if target == marker and failure == "replace":
+            raise PermissionError(errno.EACCES, "Permission denied")
+        return replace(path, target)
+
+    monkeypatch.setattr(Path, "write_text", write_marker)
+    monkeypatch.setattr(Path, "replace", replace_marker)
+    job = si._new_job(engine_id)
+    complete = si._step_persist if engine_id == "cosyvoice" else si._step_verify
+    if failure:
+        error_message = "No space left on device" if failure == "write" else "Permission denied"
+        with pytest.raises(OSError, match=error_message):
+            complete(spec, job)
+    else:
+        complete(spec, job)
+
+    assert observed_readiness == [(False, None)]
+    assert not list(checkout.glob(f"{si._INSTALL_COMPLETE_MARKER}.*"))
+    if failure:
+        assert not marker.exists()
+        assert not si._healthy(spec)
+        assert si.engine_venv_python(spec.env_var) is None
+        monkeypatch.setattr(Path, "write_text", write_text)
+        monkeypatch.setattr(Path, "replace", replace)
+        complete(spec, job)
+    assert si._healthy(spec)
+    assert si.engine_venv_python(spec.env_var) == python
+    if engine_id == "cosyvoice":
+        assert si.cosyvoice_rocm_verified()
+    else:
+        assert si.voxcpm2_rocm_verified()
 
 
 def test_voxcpm2_windows_rocm_verified_venv_is_healthy(monkeypatch):

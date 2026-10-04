@@ -38,6 +38,11 @@ in a separate process. The install:
 - clones a reviewed CosyVoice commit and the Matcha-TTS code it depends on;
 - downloads the CosyVoice 3 weights (about 5.4 GB).
 
+The completion marker is published atomically after the required checks,
+including the speech probe on native Windows ROCm. An interrupted marker write
+does not masquerade as a completed legacy CPU install. Retry Install after a
+write failure; existing model weights remain reusable.
+
 It differs from upstream's own setup:
 
 - **PyTorch 2.7.0 on existing platforms.** The CUDA 12.8 build on an NVIDIA
@@ -46,8 +51,8 @@ It differs from upstream's own setup:
   PyTorch/torchaudio 2.9.1 + ROCm 7.2.1 and torchvision 0.24.1.
   Upstream's 2.3.1 exists only for CUDA 12.1 and cannot run on RTX 50-series
   GPUs.
-- **Leaner dependencies.** No TensorRT, DeepSpeed or GPU onnxruntime, and no
-  third-party package index. Upstream uses them for extra speed on Linux;
+- **Leaner dependencies.** No TensorRT, DeepSpeed or GPU onnxruntime. Native
+  Windows ROCm uses the reviewed AMD wheel source. Upstream uses extra runtimes for speed on Linux;
   synthesis works without them. PyWORLD requires a C++ compiler: Xcode Command
   Line Tools on macOS, Visual Studio Build Tools with C++ on Windows, or the
   distribution’s C++ build tools on Linux. SoX is not needed.
