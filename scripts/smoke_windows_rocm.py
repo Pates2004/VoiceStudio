@@ -21,7 +21,8 @@ Without BOTH ASR inputs, success proves only a synchronized torch kernel, not
 speech inference. Audio decoding and feature preparation still use the CPU;
 the required GPU check applies to model inference, not those preprocessing steps.
 Supply a complete converted faster-whisper model directory
-(including tokenizer.json) and real speech in a PCM WAV, at most 60 seconds.
+(including tokenizer.json) and real speech in a PCM WAV, at most 60 seconds,
+128 MiB, 192 kHz and 32-bit samples. Header validation reads bounded chunks.
 No transcript, filenames, machine/user identifiers or raw exceptions are
 reported. Speech quality must be evaluated separately by the operator.
 
@@ -54,6 +55,8 @@ import wave
 
 
 REPORT_PREFIX = "WINDOWS_ROCM_SMOKE="
+MAX_WAV_BYTES = 128 * 1024 * 1024
+WAV_READ_BYTES = 1024 * 1024
 OFFLINE_ENV = {
     "HF_HUB_OFFLINE": "1",
     "TRANSFORMERS_OFFLINE": "1",
@@ -111,13 +114,26 @@ def _local_inputs(args: argparse.Namespace) -> None:
         _require(source.is_file() and source.stat().st_size > 0, "incomplete_model",
                  "Local model needs nonempty model.bin, config.json and tokenizer.json; nothing will be downloaded.")
     _require(args.wav.is_file(), "missing_wav", "ASR needs an existing local PCM WAV containing speech.")
+    file_size = args.wav.stat().st_size
+    _require(file_size <= MAX_WAV_BYTES, "invalid_wav", "The WAV file exceeds the 128 MiB smoke limit.")
     with wave.open(str(args.wav.resolve()), "rb") as audio:
         frame_count = audio.getnframes()
+        sample_rate = audio.getframerate()
+        sample_width = audio.getsampwidth()
+        frame_bytes = sample_width * audio.getnchannels()
         _require(audio.getcomptype() == "NONE" and audio.getnchannels() in (1, 2)
-                 and 0 < frame_count / audio.getframerate() <= 60, "invalid_wav",
-                 "Supply mono/stereo PCM speech lasting more than zero and at most 60 seconds.")
-        _require(len(audio.readframes(frame_count)) == frame_count * audio.getsampwidth() * audio.getnchannels(),
+                 and sample_width in (1, 2, 3, 4) and 0 < sample_rate <= 192000
+                 and 0 < frame_count / sample_rate <= 60, "invalid_wav",
+                 "Supply mono/stereo PCM speech up to 60 seconds, 192 kHz and 32-bit samples.")
+        payload_bytes = frame_count * frame_bytes
+        _require(payload_bytes <= file_size, "truncated_wav", "The declared WAV data exceeds the file size.")
+        _require(payload_bytes <= MAX_WAV_BYTES, "invalid_wav", "The WAV payload exceeds the 128 MiB smoke limit.")
+        remaining = frame_count
+        while remaining:
+            requested = min(remaining, WAV_READ_BYTES // frame_bytes)
+            _require(len(audio.readframes(requested)) == requested * frame_bytes,
                  "truncated_wav", "The WAV data is truncated.")
+            remaining -= requested
 
 
 def _torch_smoke(args: argparse.Namespace, report: dict):

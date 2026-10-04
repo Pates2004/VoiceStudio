@@ -107,7 +107,9 @@ root, this invocation checks a synchronized Torch GPU kernel only:
 
 For real ASR, supply **both** a complete local converted faster-whisper model
 directory (`model.bin`, `config.json`, `tokenizer.json`) and a real mono/stereo
-PCM speech WAV lasting at most 60 seconds. Replace these example paths with
+PCM speech WAV lasting at most 60 seconds (up to 128 MiB, 192 kHz, 32-bit).
+Headers are checked against file size, and payload checks use bounded reads.
+Replace these example paths with
 your own existing inputs; no model is downloaded:
 
 ```powershell

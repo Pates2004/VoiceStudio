@@ -5,7 +5,8 @@ on AMD cards, and `uv run` re-syncs before every launch. These tests pin the
 source flow: `scripts/setup.py` reinstalls the ROCm wheel after the sync, and
 `scripts/dev-backend.mjs` launches with `uv run --no-sync` so it sticks.
 """
-from contextlib import redirect_stdout
+import builtins
+from contextlib import contextmanager, nullcontext, redirect_stdout
 from io import BytesIO, StringIO
 import hashlib
 import importlib.metadata
@@ -395,6 +396,93 @@ def test_windows_rocm_ctranslate2_reports_native_gpu_failure(monkeypatch):
         setup._check_windows_rocm_ctranslate2()
 
 
+@pytest.mark.parametrize("layout", ["complete", "missing_dirs", "missing_torch"])
+@pytest.mark.parametrize("failure_stage", [None, "import", "compute"], ids=["success", "import_failure", "compute_failure"])
+def test_windows_rocm_ctranslate2_registers_installed_dll_dirs(monkeypatch, tmp_path, layout, failure_stage):
+    setup = _load_setup()
+    package_dir = tmp_path / "site-packages" / "ctranslate2"
+    package_dir.mkdir(parents=True)
+    (package_dir / "ctranslate2.dll").write_bytes(b"hipblas.dll\0amdhip64_7.dll\0")
+    torch_dir = tmp_path / "other-site-packages" / "torch"
+    directories = [
+        package_dir,
+        package_dir.parent / "_rocm_sdk_core" / "bin",
+        package_dir.parent / "_rocm_sdk_libraries_custom" / "bin",
+        torch_dir / "lib",
+    ]
+    expected = directories if layout == "complete" else directories[:3] if layout == "missing_torch" else directories[:1]
+    for directory in expected:
+        directory.mkdir(parents=True, exist_ok=True)
+    expected = [str(directory.resolve()) for directory in expected]
+    specs = {
+        "ctranslate2": SimpleNamespace(submodule_search_locations=[str(package_dir)]),
+        "torch": None if layout == "missing_torch" else SimpleNamespace(submodule_search_locations=[str(torch_dir)]),
+    }
+    find_spec = Mock(side_effect=lambda name: specs[name])
+    monkeypatch.setattr(importlib.util, "find_spec", find_spec)
+    registered = []
+    active = []
+    closed = []
+    stages = []
+    original_path = os.environ.get("PATH")
+
+    @contextmanager
+    def add_directory(directory):
+        registered.append(directory)
+        active.append(directory)
+        try:
+            yield object()
+        finally:
+            active.remove(directory)
+            closed.append(directory)
+
+    monkeypatch.setattr(os, "add_dll_directory", add_directory, raising=False)
+
+    def check_stage(stage):
+        stages.append(stage)
+        assert registered == expected
+        assert active == expected
+        assert closed == []
+        if stage == failure_stage:
+            raise RuntimeError(f"native {stage} failed")
+
+    fake = ModuleType("ctranslate2")
+    fake.__file__ = str(package_dir / "__init__.py")
+    fake.__version__ = "4.8.2"
+    fake.get_cuda_device_count = lambda: check_stage("device") or 1
+    fake.get_supported_compute_types = lambda device: check_stage("compute") or {"float16"}
+    original_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "ctranslate2":
+            check_stage("import")
+            return fake
+        if name == "torch":
+            pytest.fail("Package discovery must not import native torch")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+
+    def run_probe(command, **kwargs):
+        try:
+            exec(command[2], {})
+        except Exception as exc:
+            return SimpleNamespace(returncode=1, stdout="", stderr=str(exc))
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(setup.subprocess, "run", run_probe)
+    result = setup._probe_windows_rocm_ctranslate2()
+    assert result.returncode == (0 if failure_stage is None else 1), result.stderr
+    if failure_stage is not None:
+        assert result.stderr == f"native {failure_stage} failed"
+    assert stages == (["import"] if failure_stage == "import" else ["import", "device", "compute"])
+    assert [call.args[0] for call in find_spec.call_args_list] == ["ctranslate2", "torch"]
+    assert registered == expected
+    assert active == []
+    assert closed == expected[::-1]
+    assert os.environ.get("PATH") == original_path
+
+
 @pytest.mark.parametrize("version,library,device_count,compute_types,ready", [
     ("4.8.2", b"hipblas.dll\0amdhip64_7.dll\0", 1, {"float16"}, True),
     ("4.8.1", b"hipblas.dll\0amdhip64_7.dll\0", 1, {"float16"}, False),
@@ -413,6 +501,10 @@ def test_windows_rocm_ctranslate2_probe_rejects_locked_or_non_native_wheels(
     fake.get_cuda_device_count = lambda: device_count
     fake.get_supported_compute_types = lambda device: compute_types
     monkeypatch.setitem(sys.modules, "ctranslate2", fake)
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: (
+        SimpleNamespace(submodule_search_locations=[str(tmp_path)]) if name == "ctranslate2" else None
+    ))
+    monkeypatch.setattr(os, "add_dll_directory", lambda directory: nullcontext(), raising=False)
 
     def run_probe(command, **kwargs):
         try:

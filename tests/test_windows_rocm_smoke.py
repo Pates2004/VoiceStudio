@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import struct
 import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, MagicMock
@@ -357,6 +358,61 @@ def test_empty_or_overlong_wav_is_rejected_before_imports(asr, seconds):
     with wave.open(str(asr.runtime.args.wav), "wb") as audio:
         audio.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
         audio.writeframes(b"\x00\x00" * (16000 * seconds))
+    assert_failure(smoke._run_smoke(asr.runtime.args), "invalid_wav")
+    asr.runtime.loader.assert_not_called()
+
+
+@pytest.mark.parametrize("rate,payload,code", [
+    (1_000_000_000, 4_000_000_000, "invalid_wav"),
+    (16000, 160000, "truncated_wav"),
+])
+def test_declared_wav_payload_is_rejected_before_reading(asr, monkeypatch, rate, payload, code):
+    path = asr.runtime.args.wav
+    contents = bytearray(path.read_bytes())
+    struct.pack_into("<I", contents, 4, payload + 36)
+    struct.pack_into("<I", contents, 24, rate)
+    struct.pack_into("<I", contents, 28, rate * 2)
+    struct.pack_into("<I", contents, 40, payload)
+    path.write_bytes(contents)
+    monkeypatch.setattr(wave.Wave_read, "readframes", lambda *args: pytest.fail("Invalid declared payload reached sample reading"))
+    assert_failure(smoke._run_smoke(asr.runtime.args), code)
+    asr.runtime.loader.assert_not_called()
+
+
+def test_wav_payload_is_validated_in_bounded_chunks(asr, monkeypatch):
+    with wave.open(str(asr.runtime.args.wav), "wb") as audio:
+        audio.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        audio.writeframes(b"\x00\x00" * (16000 * 40))
+    original = wave.Wave_read.readframes
+    read_sizes = []
+
+    def bounded_read(audio, frame_count):
+        requested_bytes = frame_count * audio.getsampwidth() * audio.getnchannels()
+        assert requested_bytes <= 1024 * 1024
+        read_sizes.append(requested_bytes)
+        return original(audio, frame_count)
+
+    monkeypatch.setattr(wave.Wave_read, "readframes", bounded_read)
+    smoke._local_inputs(asr.runtime.args)
+    assert len(read_sizes) > 1
+    assert sum(read_sizes) == 16000 * 40 * 2
+
+
+def test_large_wav_file_is_rejected_before_open(asr, monkeypatch):
+    import os
+
+    original_stat = Path.stat
+
+    def oversized_stat(path, *args, **kwargs):
+        result = original_stat(path, *args, **kwargs)
+        if path == asr.runtime.args.wav:
+            values = list(result)
+            values[6] = 128 * 1024 * 1024 + 1
+            return os.stat_result(values)
+        return result
+
+    monkeypatch.setattr(Path, "stat", oversized_stat)
+    monkeypatch.setattr(wave, "open", lambda *args: pytest.fail("Oversized WAV opened"))
     assert_failure(smoke._run_smoke(asr.runtime.args), "invalid_wav")
     asr.runtime.loader.assert_not_called()
 
