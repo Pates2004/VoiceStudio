@@ -40,6 +40,7 @@ metadata and the backend fallback mirror it.
 ### Added
 - Opt-in native Windows ROCm source bootstrap with pinned AMD PyTorch and hash-checked CTranslate2 wheels, plus an offline standalone GPU smoke; packaged setup and app GPU support are unchanged (#2468)
 
+- `VOICESTUDIO_DISABLE_UPDATER=1` turns off the in-app updater for package-managed installs, and the Linux guide lists the community AUR package (#2557)
 - MCP agents can design a voice from a text description and reuse it by `profile_id` (`describe_voice`, `design_voice`) (#2368) — thanks @thelselutopia!
 - Dictation vocabulary hint in Settings → Dictation shortcut: names and jargon that Faster Whisper, MLX Whisper and OpenAI-compatible engines should expect (#2395) — thanks @m061i6!
 - Cheaper Inference is available as an optional LLM provider (#2325) — thanks @aiapienthusiast!
