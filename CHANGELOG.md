@@ -9,6 +9,7 @@ metadata and the backend fallback mirror it.
 ## [Unreleased]
 
 **Highlights**
+- Preserve sequential-only audio decoding and cropping in the torchaudio 2.9 compatibility adapter (#2607) — thanks @Pates2004!
 - Honor both offline switches before optional ROCm word-alignment downloads (#2607) — thanks @Pates2004!
 - Publish engine readiness atomically so interrupted marker writes remain repairable (#2607) — thanks @Pates2004!
 - Skip locked CUDA packages during native Windows ROCm setup and repair (#2607) — thanks @Pates2004!

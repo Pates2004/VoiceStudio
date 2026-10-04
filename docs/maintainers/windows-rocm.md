@@ -98,6 +98,12 @@ paths and the full diarization pipeline remain release requirements.
   tests; no Electron auto-detection or engine enablement implied.
 - Audio-library compatibility: a tested application boundary, not a fork of
   site-packages; unchanged older stacks must remain no-ops.
+  Cover sequential-only soundfile codecs as well as seekable PCM, including
+  file-like input and pyannote's full-decode crop fallback for file paths; do not
+  seek to frame zero on a decoder that cannot seek. Nonzero file-like crops must
+  still report the library's unsupported seek, not return the wrong audio slice.
+  Audio decoding remains ordinary CPU work,
+  as on CUDA; this boundary must not move tensor/model inference to CPU.
 - Desktop runtime: consume the recipe, verify package identity and GPU capability,
   stamp the complete contract, preserve data and require explicit installation.
 - Engine integration: per-engine real inference and quality evidence before

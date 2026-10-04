@@ -74,7 +74,8 @@ def _soundfile_load(
                 raise ValueError(f"Unsupported unnormalized WAV subtype: {source.subtype}")
             unsigned_pcm = source.subtype == "PCM_U8"
         start = min(int(frame_offset), source.frames)
-        source.seek(start)
+        if source.seekable() or frame_offset:
+            source.seek(start)
         remaining = source.frames - start
         frames = remaining if num_frames == -1 else min(int(num_frames), remaining)
         samples = source.read(frames=frames, dtype=sample_type, always_2d=True)

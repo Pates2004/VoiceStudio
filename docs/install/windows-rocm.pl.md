@@ -65,6 +65,10 @@ obejścia przez zmienne środowiskowe.
 - Adapter pyannote 3.x przywraca metadane i jawne odczyty soundfile usunięte
   w torchaudio 2.9 bez zmiany zainstalowanych zależności ani obliczeń tensorowych.
   Test adaptera nie potwierdza jąder GPU ani diaryzacji.
+  Kodeki odczytywane tylko sekwencyjnie, np. GSM w WAV, są dekodowane od początku
+  bez nieobsługiwanego przewijania; dla ścieżek plików pyannote może wyciąć
+  fragment po pełnym odczycie. Wycinanie od niezerowej pozycji w strumieniu
+  plikopodobnym nadal podlega istniejącemu ograniczeniu pyannote.
 - Świeże instalacje VoxCPM2 i CosyVoice mają osobne receptury ROCm i kontrole GPU.
   Ukończone instalacje CPU nie są automatycznie konwertowane ani fałszywie
   oznaczane jako przyspieszone. Migracja i ograniczenia są w opisach silników.

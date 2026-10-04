@@ -63,6 +63,9 @@ No development SDK dependency or production environment workaround is added.
 - The source pyannote 3.x adapter restores metadata and explicit soundfile reads
   removed by torchaudio 2.9 without modifying installed dependencies or tensor
   execution. An audio-adapter pass does not prove GPU kernels or diarization.
+  Sequential-only codecs such as GSM WAV decode from the beginning without an
+  unsupported seek; pyannote can crop file paths through its full-decode fallback.
+  Nonzero crops from file-like streams retain pyannote's existing limitation.
 - Fresh VoxCPM2 and CosyVoice installs have separate ROCm recipes and GPU checks.
   Complete CPU installations are not silently converted or labelled accelerated.
   Completion markers are written atomically; a partial write cannot report a
