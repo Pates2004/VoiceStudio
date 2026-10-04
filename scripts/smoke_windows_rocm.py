@@ -86,6 +86,7 @@ def _version(distribution: str) -> str | None:
 
 
 def _report(args: argparse.Namespace) -> dict:
+    """Initialize a content-free report for torch-only or explicitly requested ASR."""
     return {
         "schema_version": 1,
         "ok": False,
@@ -100,6 +101,11 @@ def _report(args: argparse.Namespace) -> dict:
 
 
 def _local_inputs(args: argparse.Namespace) -> None:
+    """Validate local inputs and bounded PCM payloads before loading native runtimes.
+
+    Reject WAV metadata declaring more data than the file contains or the
+    128-MiB limit allows, then check the payload using at most 1-MiB reads.
+    """
     _require(sys.platform == "win32", "windows_required", "Native Windows is required; WSL is not this smoke.")
     _require(args.device_index >= 0, "invalid_device", "Device index must be nonnegative.")
     _require(args.timeout > 0, "invalid_timeout", "Timeout must be positive.")
@@ -137,6 +143,11 @@ def _local_inputs(args: argparse.Namespace) -> None:
 
 
 def _torch_smoke(args: argparse.Namespace, report: dict):
+    """Verify synchronized HIP matmul on the requested GPU and update the report.
+
+    Reject CPU or wrong-device tensors and incorrect outputs; return the
+    imported torch module for the optional ASR check.
+    """
     torch = importlib.import_module("torch")
     details = report["torch"]
     details.update(version=str(torch.__version__), hip=getattr(torch.version, "hip", None),
@@ -177,6 +188,7 @@ def _torch_smoke(args: argparse.Namespace, report: dict):
 
 
 def _ct2_directory() -> Path:
+    """Locate CT2 without importing it and require its HIP DLL dependency markers."""
     spec = importlib.util.find_spec("ctranslate2")
     _require(spec is not None and bool(spec.submodule_search_locations), "ct2_missing",
              "Install the Windows HIP CTranslate2 wheel explicitly before requesting ASR.")
@@ -190,6 +202,11 @@ def _ct2_directory() -> Path:
 
 
 def _asr_smoke(args: argparse.Namespace, report: dict, torch) -> None:
+    """Run local-only ASR on the exact requested GPU and compute type.
+
+    Keep SDK DLL handles alive while consuming all segments. Record counts
+    and timing, not transcript text; reject CPU fallback and invalid results.
+    """
     directory = _ct2_directory()
     with ExitStack() as stack:
         directories = [directory, directory.parent / "_rocm_sdk_core" / "bin",
@@ -238,6 +255,7 @@ def _asr_smoke(args: argparse.Namespace, report: dict, torch) -> None:
 
 
 def _run_smoke(args: argparse.Namespace) -> dict:
+    """Force model-library offline mode and return a sanitized success/error report."""
     report = _report(args)
     os.environ.update(OFFLINE_ENV)
     try:
@@ -264,6 +282,11 @@ def _run_smoke(args: argparse.Namespace) -> dict:
 
 
 def _run_isolated(args: argparse.Namespace, argv: list[str]) -> dict:
+    """Run a deadline-bound child and validate its report against the exit status.
+
+    Capture native output without forwarding it. Report timeouts, crashes and
+    malformed worker output as structured failures instead of partial success.
+    """
     report = _report(args)
     report["stage"] = "worker"
     try:
@@ -302,6 +325,11 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Emit one JSON report and return 0 for success or 1 for runtime failure.
+
+    Argument parsing retains argparse's help and usage exits. Internal workers
+    prefix their report so the parent can separate it from native output.
+    """
     argv = list(sys.argv[1:] if argv is None else argv)
     args = _parser().parse_args(argv)
     report = _run_smoke(args) if args._worker else _run_isolated(args, argv)

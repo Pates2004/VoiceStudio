@@ -81,6 +81,7 @@ def _rocm_opt_in(environ=os.environ, platform=sys.platform):
 
 
 def _rocm_python_supported(platform=sys.platform, version=sys.version_info):
+    """Enforce Python 3.12/x64 on Windows without restricting other platforms."""
     return platform != "win32" or (
         tuple(version[:2]) == (3, 12) and sysconfig.get_platform() == "win-amd64"
     )
@@ -116,6 +117,7 @@ def _installed_torch_is_rocm(platform=sys.platform):
 
 
 def _check_windows_rocm():
+    """Raise if an isolated HIP probe cannot verify a synchronized GPU matmul."""
     subprocess.check_call(
         [
             sys.executable, "-c",
@@ -184,6 +186,7 @@ def _ensure_rocm_torch():
 # ── Windows: VC++ Redistributable ─────────────────────────────────────────
 
 def _save_and_hash(source, destination):
+    """Stream to destination in 1-MiB chunks and return the uppercase SHA-256."""
     digest = hashlib.sha256()
     with open(destination, "wb") as output:
         while chunk := source.read(1024 * 1024):
@@ -193,6 +196,11 @@ def _save_and_hash(source, destination):
 
 
 def _install_windows_rocm_ctranslate2():
+    """Download and verify the pinned HIP wheel, then install into this interpreter.
+
+    Check the archive and exact wheel member hashes before installation. Clean
+    temporary files on failure, but do not roll back partial package changes.
+    """
     with tempfile.TemporaryDirectory(prefix="voicestudio-rocm-ct2-") as temp_dir:
         archive_path = os.path.join(temp_dir, "rocm-python-wheels-Windows.zip")
         wheel_path = os.path.join(temp_dir, WINDOWS_ROCM_CT2_WHEEL_MEMBER.rsplit("/", 1)[-1])
@@ -226,6 +234,11 @@ def _install_windows_rocm_ctranslate2():
 
 
 def _probe_windows_rocm_ctranslate2():
+    """Return an isolated CT2 GPU probe result with SDK DLL handles kept alive.
+
+    A nonzero exit indicates failed validation; process launch errors and
+    timeouts raise RuntimeError rather than masquerading as a probe result.
+    """
     probe = (
         "from contextlib import ExitStack\n"
         "from importlib.util import find_spec\n"
@@ -266,6 +279,7 @@ def _probe_windows_rocm_ctranslate2():
 
 
 def _check_windows_rocm_ctranslate2():
+    """Raise with bounded probe diagnostics when CT2 GPU validation fails."""
     result = _probe_windows_rocm_ctranslate2()
     if result.returncode != 0:
         diagnosis = (result.stderr or result.stdout or "no error output").strip()[-2000:]
@@ -276,6 +290,7 @@ def _check_windows_rocm_ctranslate2():
 
 
 def _ensure_windows_rocm_ctranslate2():
+    """Reuse validated CT2 or install the pinned HIP wheel and recheck the GPU."""
     if _probe_windows_rocm_ctranslate2().returncode == 0:
         print("Windows ROCm CTranslate2 GPU float16 already ready")
         return
