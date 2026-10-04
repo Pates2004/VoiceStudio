@@ -1305,7 +1305,9 @@ class FasterWhisperBackend(ASRBackend):
                 out["segments"], align_model, metadata, audio, align_device,
                 return_char_alignments=False,
             )["segments"]
-            if len(aligned) != len(out["segments"]) or any(
+            source_text = "".join("".join(segment["text"].split()) for segment in out["segments"])
+            aligned_text = "".join("".join(segment["text"].split()) for segment in aligned)
+            if not aligned or aligned_text != source_text or any(
                 not segment.get("words") or any(
                     word.get("start") is None or word.get("end") is None
                     for word in segment["words"]

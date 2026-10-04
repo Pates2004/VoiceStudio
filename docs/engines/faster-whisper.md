@@ -70,6 +70,9 @@ Offline with complete caches works. If an optional alignment checkpoint or
 NLTK data is absent offline, or its download fails, transcription returns
 faster-whisper's native word timestamps instead. The ASR model itself must
 still be cached, and alignment computation errors still fail explicitly.
+The aligner may split a transcript segment into multiple sentences. This is
+accepted when the transcript text is preserved in order (ignoring whitespace)
+and every returned word has timestamps; dropped or changed text is rejected.
 Large first-time downloads may exceed the transcription timeout on slow links;
 retry after caching finishes. The Polish download requests only PyTorch model
 files, not the unrelated Flax or language-model variants in the same HF repo.

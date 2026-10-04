@@ -9,6 +9,7 @@ metadata and the backend fallback mirror it.
 ## [Unreleased]
 
 **Highlights**
+- Preserve complete ROCm transcripts when forced alignment splits sentences (#2607) — thanks @Pates2004!
 - Draft native Windows ROCm desktop and engine integration shares the reviewed recipe; full WhisperX remains unavailable (#2468) — thanks @Pates2004!
 - Reserve migration snapshot counters atomically (#2453) — thanks @rudycelekli!
 - Ask VoiceStudio Agent adds chat, harness selection, feature presets, read-only planning and autopilot app actions without a source checkout (#2407)

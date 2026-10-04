@@ -731,3 +731,70 @@ def test_rocm_transcription_does_not_hide_alignment_computation_failure(monkeypa
     backend = _rocm_backend_with_native_words(monkeypatch, 'en')
     with pytest.raises(ValueError, match='alignment computation failed'):
         backend.transcribe('demo.wav')
+
+
+def _rocm_backend_with_alignment_output(monkeypatch, text, aligned_texts):
+    import numpy as np
+
+    backend = _rocm_backend_with_native_words(monkeypatch, "en")
+    native_segment = types.SimpleNamespace(text=text, start=0.0, end=2.0, words=[])
+    backend._model = types.SimpleNamespace(transcribe=lambda *_args, **_kwargs: (
+        iter([native_segment]),
+        types.SimpleNamespace(language="en", language_probability=0.99, duration=2.0),
+    ))
+    aligned = [
+        {
+            "text": sentence, "start": float(index), "end": float(index + 1),
+            "words": [{"word": sentence, "start": float(index), "end": float(index + 1)}],
+        }
+        for index, sentence in enumerate(aligned_texts)
+    ]
+    monkeypatch.setattr(ab, "_decode_audio_16k_mono", lambda _path: np.zeros(32000, dtype=np.float32))
+    monkeypatch.setattr(ab, "_load_installed_align_model", lambda *_args: (
+        types.SimpleNamespace(align=lambda *_args, **_kwargs: {"segments": aligned}), object(), {},
+    ))
+    return backend, aligned
+
+
+@pytest.mark.parametrize("text,aligned_texts", [
+    (" Hello there. Goodbye now.", ["Hello there.", "Goodbye now."]),
+    (" Dzień dobry.\nDo zobaczenia! ", ["Dzień dobry.", "Do zobaczenia!"]),
+])
+def test_rocm_alignment_accepts_sentence_splitting(monkeypatch, text, aligned_texts):
+    backend, aligned = _rocm_backend_with_alignment_output(monkeypatch, text, aligned_texts)
+
+    result = backend.transcribe("demo.wav")
+
+    assert result["segments"] == aligned
+    assert result["chunks"] == [
+        {"text": segment["text"], "timestamp": (segment["start"], segment["end"])}
+        for segment in aligned
+    ]
+    assert backend._device == "cuda"
+
+
+@pytest.mark.parametrize("aligned_texts", [
+    ["Hello there."],
+    ["Goodbye now. Hello there."],
+    ["Hello there. Another sentence."],
+])
+def test_rocm_alignment_rejects_changed_transcript(monkeypatch, aligned_texts):
+    backend, _aligned = _rocm_backend_with_alignment_output(
+        monkeypatch, " Hello there. Goodbye now.", aligned_texts,
+    )
+
+    with pytest.raises(RuntimeError, match="ROCm forced alignment"):
+        backend.transcribe("demo.wav")
+
+
+@pytest.mark.parametrize("words", [
+    [],
+    [{"word": "Hello", "start": None, "end": 1.0}],
+    [{"word": "Hello", "start": 0.0, "end": None}],
+])
+def test_rocm_alignment_still_rejects_missing_word_timings(monkeypatch, words):
+    backend, aligned = _rocm_backend_with_alignment_output(monkeypatch, "Hello", ["Hello"])
+    aligned[0]["words"] = words
+
+    with pytest.raises(RuntimeError, match="ROCm forced alignment"):
+        backend.transcribe("demo.wav")
