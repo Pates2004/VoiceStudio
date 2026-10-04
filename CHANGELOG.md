@@ -38,7 +38,7 @@ metadata and the backend fallback mirror it.
 - Workflows can branch: a Condition step sends each item down one of two routes by what its text says (#2380) — thanks @shivsin25!
 
 ### Added
-- Opt-in native Windows ROCm source bootstrap with pinned AMD PyTorch and hash-checked CTranslate2 wheels, plus an offline standalone GPU smoke; packaged setup and app GPU support are unchanged (#2468)
+- Opt-in native Windows ROCm source bootstrap with a reusable pinned recipe, hash-checked CTranslate2 wheels and offline GPU smoke; packaged setup and app GPU support are unchanged (#2468)
 
 - `VOICESTUDIO_DISABLE_UPDATER=1` turns off the in-app updater for package-managed installs, and the Linux guide lists the community AUR package (#2557)
 - MCP agents can design a voice from a text description and reuse it by `profile_id` (`describe_voice`, `design_voice`) (#2368) — thanks @thelselutopia!

@@ -60,6 +60,13 @@ selection. Launching Electron is a separate flow, not validation of this venv.
 
 ## Pins and provenance
 
+The machine-readable contract is `scripts/windows-rocm-recipe.json`. Keep it
+beside `scripts/setup.py`; setup reads it relative to the script, independent of
+the working directory. Maintainers should follow the
+[update and validation contract](../maintainers/windows-rocm.md). A desktop port
+can consume this same recipe at build time without duplicating version pins;
+this source-only PR still does not change Electron's managed runtime.
+
 | Package | Windows opt-in version |
 | --- | --- |
 | `torch` | `2.9.1+rocm7.2.1` |

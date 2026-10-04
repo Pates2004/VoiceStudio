@@ -28,7 +28,9 @@ Cross-platform:
 """
 import glob
 import hashlib
+import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import sysconfig
@@ -58,17 +60,18 @@ for _stream in (sys.stdout, sys.stderr):
 # [tool.uv.constraint-dependencies].
 ROCM_TORCH_INDEX = "https://download.pytorch.org/whl/rocm6.4"
 ROCM_TORCH_PINS = ("torch==2.8.0", "torchaudio==2.8.0", "torchvision==0.23.0")
-WINDOWS_ROCM_FIND_LINKS = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1/"
-WINDOWS_ROCM_TORCH_PINS = (
-    "torch==2.9.1+rocm7.2.1",
-    "torchaudio==2.9.1+rocm7.2.1",
-    "torchvision==0.24.1+rocm7.2.1",
-    "rocm[libraries]==7.2.1",
+WINDOWS_ROCM_RECIPE = json.loads(
+    Path(__file__).with_name("windows-rocm-recipe.json").read_text(encoding="utf-8")
 )
-WINDOWS_ROCM_CT2_URL = "https://github.com/OpenNMT/CTranslate2/releases/download/v4.8.2/rocm-python-wheels-Windows.zip"
-WINDOWS_ROCM_CT2_ARCHIVE_SHA256 = "43DA4BAA5FEAEE49F77E176277A9647F99C493173C81A0BC60F491CAC97532C2"
-WINDOWS_ROCM_CT2_WHEEL_MEMBER = "temp-windows/ctranslate2-4.8.2-cp312-cp312-win_amd64.whl"
-WINDOWS_ROCM_CT2_WHEEL_SHA256 = "D5B9B0D34B23584638FC087BF99A85B0BA9917B84860D5FBDDCC73B0AEDD4FD4"
+WINDOWS_ROCM_PYTHON_VERSION = WINDOWS_ROCM_RECIPE["python"]["version"]
+WINDOWS_ROCM_FIND_LINKS = WINDOWS_ROCM_RECIPE["torch"]["find_links"]
+WINDOWS_ROCM_TORCH_PINS = tuple(WINDOWS_ROCM_RECIPE["torch"]["packages"])
+WINDOWS_ROCM_CT2_VERSION = WINDOWS_ROCM_RECIPE["ctranslate2"]["version"]
+WINDOWS_ROCM_CT2_URL = WINDOWS_ROCM_RECIPE["ctranslate2"]["archive_url"]
+WINDOWS_ROCM_CT2_ARCHIVE_SHA256 = WINDOWS_ROCM_RECIPE["ctranslate2"]["archive_sha256"].upper()
+WINDOWS_ROCM_CT2_WHEEL_MEMBER = WINDOWS_ROCM_RECIPE["ctranslate2"]["wheel_member"]
+WINDOWS_ROCM_CT2_WHEEL_SHA256 = WINDOWS_ROCM_RECIPE["ctranslate2"]["wheel_sha256"].upper()
+WINDOWS_ROCM_CT2_REQUIRED_DLLS = tuple(WINDOWS_ROCM_RECIPE["ctranslate2"]["required_dlls"])
 
 
 def _rocm_opt_in(environ=os.environ, platform=sys.platform):
@@ -81,9 +84,10 @@ def _rocm_opt_in(environ=os.environ, platform=sys.platform):
 
 
 def _rocm_python_supported(platform=sys.platform, version=sys.version_info):
-    """Enforce Python 3.12/x64 on Windows without restricting other platforms."""
+    """Enforce the recipe's Windows interpreter without restricting other platforms."""
     return platform != "win32" or (
-        tuple(version[:2]) == (3, 12) and sysconfig.get_platform() == "win-amd64"
+        tuple(version[:2]) == tuple(int(part) for part in WINDOWS_ROCM_PYTHON_VERSION.split("."))
+        and sysconfig.get_platform() == WINDOWS_ROCM_RECIPE["python"]["platform"]
     )
 
 
@@ -162,7 +166,8 @@ def _ensure_rocm_torch():
         return
     if not _rocm_python_supported():
         raise RuntimeError(
-            "Windows ROCm 7.2.1 requires x64 Python 3.12; run uv sync --python 3.12 "
+            f"Windows ROCm requires x64 Python {WINDOWS_ROCM_PYTHON_VERSION}; "
+            f"run uv sync --python {WINDOWS_ROCM_PYTHON_VERSION} "
             "with a Windows x64 interpreter first"
         )
     if _installed_torch_is_rocm():
@@ -216,7 +221,7 @@ def _install_windows_rocm_ctranslate2():
             with zipfile.ZipFile(archive_path) as archive:
                 members = [member for member in archive.infolist() if member.filename == WINDOWS_ROCM_CT2_WHEEL_MEMBER]
                 if len(members) != 1 or members[0].is_dir():
-                    raise RuntimeError("Windows ROCm CTranslate2 archive must contain exactly one expected cp312 wheel")
+                    raise RuntimeError("Windows ROCm CTranslate2 archive must contain exactly one expected wheel")
                 with archive.open(members[0]) as wheel:
                     wheel_hash = _save_and_hash(wheel, wheel_path)
         except (OSError, zipfile.BadZipFile) as exc:
@@ -258,10 +263,11 @@ def _probe_windows_rocm_ctranslate2():
         "        if directory.is_dir():\n"
         "            stack.enter_context(os.add_dll_directory(str(directory)))\n"
         "    import ctranslate2\n"
-        "    if ctranslate2.__version__ != '4.8.2':\n"
-        "        raise RuntimeError(f'Expected CTranslate2 4.8.2, found {ctranslate2.__version__}')\n"
+        f"    if ctranslate2.__version__ != {WINDOWS_ROCM_CT2_VERSION!r}:\n"
+        f"        raise RuntimeError(f'Expected CTranslate2 {WINDOWS_ROCM_CT2_VERSION}, found {{ctranslate2.__version__}}')\n"
         "    binary = Path(ctranslate2.__file__).with_name('ctranslate2.dll').read_bytes()\n"
-        "    if b'hipblas.dll\\x00' not in binary or b'amdhip64_7.dll\\x00' not in binary:\n"
+        f"    required_dlls = {WINDOWS_ROCM_CT2_REQUIRED_DLLS!r}\n"
+        "    if not all(name.encode('ascii') + b'\\x00' in binary for name in required_dlls):\n"
         "        raise RuntimeError('Installed CTranslate2 does not contain the Windows ROCm backend')\n"
         "    device_count = ctranslate2.get_cuda_device_count()\n"
         "    if device_count < 1:\n"
@@ -284,8 +290,9 @@ def _check_windows_rocm_ctranslate2():
     if result.returncode != 0:
         diagnosis = (result.stderr or result.stdout or "no error output").strip()[-2000:]
         raise RuntimeError(
-            f"Windows ROCm CTranslate2 4.8.2 cannot use GPU float16 (exit {result.returncode}): {diagnosis}. "
-            "Check the ROCm 7.2.1 driver/runtime, compatible AMD GPU, and Python 3.12."
+            f"Windows ROCm CTranslate2 {WINDOWS_ROCM_CT2_VERSION} cannot use GPU float16 "
+            f"(exit {result.returncode}): {diagnosis}. "
+            f"Check the recipe's ROCm driver/runtime, compatible AMD GPU, and Python {WINDOWS_ROCM_PYTHON_VERSION}."
         )
 
 
@@ -294,7 +301,7 @@ def _ensure_windows_rocm_ctranslate2():
     if _probe_windows_rocm_ctranslate2().returncode == 0:
         print("Windows ROCm CTranslate2 GPU float16 already ready")
         return
-    print("Installing native Windows ROCm CTranslate2 4.8.2...")
+    print(f"Installing native Windows ROCm CTranslate2 {WINDOWS_ROCM_CT2_VERSION}...")
     _install_windows_rocm_ctranslate2()
     _check_windows_rocm_ctranslate2()
     print("Windows ROCm CTranslate2 GPU float16 ready")
