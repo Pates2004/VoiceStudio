@@ -59,6 +59,9 @@ obejścia przez zmienne środowiskowe.
   Błędy obliczania wyrównania nadal są zgłaszane. Podział na zdania jest poprawny
   tylko przy zachowaniu całego tekstu w tej samej kolejności i znaczników czasu słów.
   To nie jest pełny WhisperX.
+  `HF_HUB_OFFLINE` lub `TRANSFORMERS_OFFLINE` ustawione na `1`, `on`, `yes` albo
+  `true` (niezależnie od wielkości liter) blokują pobieranie opcjonalnych zasobów
+  wyrównania. Zapisane modele nadal używają wybranego GPU; nie dodaje to inferencji CPU.
 - Adapter pyannote 3.x przywraca metadane i jawne odczyty soundfile usunięte
   w torchaudio 2.9 bez zmiany zainstalowanych zależności ani obliczeń tensorowych.
   Test adaptera nie potwierdza jąder GPU ani diaryzacji.

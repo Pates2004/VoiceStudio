@@ -348,13 +348,17 @@ def test_english_aligner_uses_cached_checkpoint_and_punkt_offline(monkeypatch, t
     assert loaded == [("en", "cuda", {"model_name": model_name, "model_dir": str(checkpoint.parent)})]
 
 
-def test_french_aligner_uses_cached_gpu_checkpoint(monkeypatch, tmp_path):
+@pytest.mark.parametrize('offline_variable', ['HF_HUB_OFFLINE', 'TRANSFORMERS_OFFLINE'])
+@pytest.mark.parametrize('offline_value', ['1', 'true', 'YES', 'ON'])
+def test_french_aligner_uses_cached_gpu_checkpoint(monkeypatch, tmp_path, offline_variable, offline_value):
     import nltk
     import torch
     import torchaudio
     from core import config
 
-    monkeypatch.setenv('HF_HUB_OFFLINE', '1')
+    monkeypatch.delenv('HF_HUB_OFFLINE', raising=False)
+    monkeypatch.delenv('TRANSFORMERS_OFFLINE', raising=False)
+    monkeypatch.setenv(offline_variable, offline_value)
     monkeypatch.setattr(config, 'DATA_DIR', str(tmp_path))
     monkeypatch.setattr(torch.hub, 'get_dir', lambda: str(tmp_path))
     checkpoint = tmp_path / 'checkpoints' / 'french.pth'
@@ -375,12 +379,16 @@ def test_french_aligner_uses_cached_gpu_checkpoint(monkeypatch, tmp_path):
     assert loaded == [('fr', 'cuda', {'model_name': model_name, 'model_dir': str(checkpoint.parent)})]
 
 
-def test_dutch_aligner_uses_cached_hf_snapshot_on_gpu(monkeypatch, tmp_path):
+@pytest.mark.parametrize('offline_variable', ['HF_HUB_OFFLINE', 'TRANSFORMERS_OFFLINE'])
+@pytest.mark.parametrize('offline_value', ['1', 'true', 'YES', 'ON'])
+def test_dutch_aligner_uses_cached_hf_snapshot_on_gpu(monkeypatch, tmp_path, offline_variable, offline_value):
     import huggingface_hub
     import nltk
     from core import config
 
-    monkeypatch.setenv('HF_HUB_OFFLINE', '1')
+    monkeypatch.delenv('HF_HUB_OFFLINE', raising=False)
+    monkeypatch.delenv('TRANSFORMERS_OFFLINE', raising=False)
+    monkeypatch.setenv(offline_variable, offline_value)
     monkeypatch.setattr(config, 'DATA_DIR', str(tmp_path))
     monkeypatch.setattr(nltk.data, 'load', lambda *_args: object())
     for name in ('config.json', 'preprocessor_config.json', 'vocab.json', 'model.safetensors'):
@@ -403,6 +411,7 @@ def test_missing_punkt_downloads_only_on_transcription_into_persistent_cache(mon
     from core import config
 
     monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising=False)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
     state = {"installed": False}
 
@@ -435,11 +444,13 @@ def test_missing_punkt_downloads_only_on_transcription_into_persistent_cache(mon
 
 
 @pytest.mark.parametrize("cached", [True, False])
-def test_polish_aligner_downloads_only_on_cache_miss(monkeypatch, tmp_path, cached):
+@pytest.mark.parametrize("offline_value", ["", "0", "FALSE", "off", "no"])
+def test_polish_aligner_downloads_only_on_cache_miss(monkeypatch, tmp_path, cached, offline_value):
     import nltk
     import huggingface_hub
 
-    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    monkeypatch.setenv("HF_HUB_OFFLINE", offline_value)
+    monkeypatch.setenv("TRANSFORMERS_OFFLINE", offline_value)
     monkeypatch.setattr(nltk.data, "load", lambda *_args: object())
     calls = []
     for filename in ("config.json", "preprocessor_config.json", "vocab.json", "pytorch_model.bin"):
@@ -473,6 +484,7 @@ def test_incomplete_polish_snapshot_is_downloaded_on_demand(monkeypatch, tmp_pat
     import huggingface_hub
 
     monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising=False)
     monkeypatch.setattr(nltk.data, "load", lambda *_args: object())
     calls = []
 
@@ -498,6 +510,7 @@ def test_polish_download_failure_is_classified_as_optional_alignment_unavailable
     import huggingface_hub
 
     monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising=False)
     def snapshot(_repo, **kwargs):
         if kwargs.get("local_files_only"):
             raise FileNotFoundError("offline")
@@ -620,8 +633,10 @@ def test_unsupported_rocm_language_preserves_native_word_timestamps(monkeypatch)
 
 
 @pytest.mark.parametrize('missing', ['english_checkpoint', 'polish_checkpoint', 'punkt'])
+@pytest.mark.parametrize('offline_variable', ['HF_HUB_OFFLINE', 'TRANSFORMERS_OFFLINE'])
+@pytest.mark.parametrize('offline_value', ['1', 'ON', 'YES', 'TRUE', 'on', 'yes', 'true', 'True'])
 def test_rocm_transcription_keeps_native_words_when_optional_aligner_missing_offline(
-    monkeypatch, tmp_path, missing,
+    monkeypatch, tmp_path, missing, offline_variable, offline_value,
 ):
     import huggingface_hub
     import nltk
@@ -629,7 +644,9 @@ def test_rocm_transcription_keeps_native_words_when_optional_aligner_missing_off
     import torchaudio
     from core import config
 
-    monkeypatch.setenv('HF_HUB_OFFLINE', '1')
+    monkeypatch.delenv('HF_HUB_OFFLINE', raising=False)
+    monkeypatch.delenv('TRANSFORMERS_OFFLINE', raising=False)
+    monkeypatch.setenv(offline_variable, offline_value)
     monkeypatch.setattr(config, 'DATA_DIR', str(tmp_path))
     monkeypatch.setattr(nltk, 'download', lambda *_args, **_kwargs: pytest.fail('offline download attempted'))
     monkeypatch.setattr(torch.hub, 'get_dir', lambda: str(tmp_path))
@@ -672,6 +689,7 @@ def test_rocm_transcription_keeps_native_words_after_polish_download_failure(mon
     import huggingface_hub
 
     monkeypatch.delenv('HF_HUB_OFFLINE', raising=False)
+    monkeypatch.delenv('TRANSFORMERS_OFFLINE', raising=False)
     attempts = []
 
     def snapshot(_repo, **kwargs):
@@ -697,6 +715,7 @@ def test_rocm_transcription_keeps_native_words_after_english_download_failure(mo
     from urllib.error import URLError
 
     monkeypatch.delenv('HF_HUB_OFFLINE', raising=False)
+    monkeypatch.delenv('TRANSFORMERS_OFFLINE', raising=False)
     monkeypatch.setattr(torch.hub, 'get_dir', lambda: str(tmp_path))
     monkeypatch.setattr(
         torchaudio.pipelines, 'WAV2VEC2_ASR_BASE_960H', types.SimpleNamespace(_path='uncached.pth'),

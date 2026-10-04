@@ -56,6 +56,12 @@ setup. Setup and smoke tests cover opt-in, matching packages, wrong/native
 artifacts, DLL handle lifetime, bounded WAV input, failure and optimized Python.
 These are deterministic regression tests, **not hardware compatibility tests**.
 
+The ASR tests exercise both offline switches (`HF_HUB_OFFLINE` and
+`TRANSFORMERS_OFFLINE`) and their true/false spellings at the Torch checkpoint,
+Hugging Face snapshot and NLTK boundaries. Missing optional assets must retain
+native word timings without a network attempt or CPU inference fallback;
+complete caches must still allow the requested GPU aligner.
+
 For the separate Electron integration also run its `runtime-project.test.ts`,
 `tests/test_electron_rocm_probes.py`, typecheck and packaging contracts. Test
 default/Linux/macOS branches as well as Windows opt-in; no GPU is required for

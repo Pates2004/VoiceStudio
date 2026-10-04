@@ -3029,6 +3029,10 @@ def _load_installed_align_model(language: str, device: str):
     import nltk
     from core.config import DATA_DIR
 
+    offline = any(
+        os.environ.get(name, "").strip().upper() in {"1", "ON", "YES", "TRUE"}
+        for name in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE")
+    )
     align_module = importlib.import_module("whisperx.alignment")
     torch_models = align_module.DEFAULT_ALIGN_MODELS_TORCH
     hf_models = align_module.DEFAULT_ALIGN_MODELS_HF
@@ -3042,7 +3046,7 @@ def _load_installed_align_model(language: str, device: str):
         model_name = torch_models[language]
         bundle = getattr(torchaudio.pipelines, model_name)
         checkpoint = Path(torch.hub.get_dir()) / "checkpoints" / bundle._path
-        if not checkpoint.is_file() and os.environ.get("HF_HUB_OFFLINE") == "1":
+        if not checkpoint.is_file() and offline:
             raise _OptionalAlignmentUnavailable(
                 f"{label} forced-alignment checkpoint is missing while offline; "
                 "connect to download it on the next word-timestamp transcription"
@@ -3076,7 +3080,7 @@ def _load_installed_align_model(language: str, device: str):
             if not snapshot_complete(snapshot):
                 raise FileNotFoundError(f"cached {label} alignment snapshot is incomplete")
         except (OSError, FileNotFoundError) as exc:
-            if os.environ.get("HF_HUB_OFFLINE") == "1":
+            if offline:
                 raise _OptionalAlignmentUnavailable(
                     f"{label} forced-alignment checkpoint is missing while offline; "
                     "connect to download it on the next word-timestamp transcription"
@@ -3099,7 +3103,7 @@ def _load_installed_align_model(language: str, device: str):
     try:
         nltk.data.load("tokenizers/punkt/english.pickle")
     except LookupError:
-        if os.environ.get("HF_HUB_OFFLINE") == "1":
+        if offline:
             raise _OptionalAlignmentUnavailable(
                 "NLTK punkt_tab is missing while offline; "
                 "connect to download it on the next word-timestamp transcription"

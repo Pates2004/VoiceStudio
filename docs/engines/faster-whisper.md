@@ -70,6 +70,10 @@ Offline with complete caches works. If an optional alignment checkpoint or
 NLTK data is absent offline, or its download fails, transcription returns
 faster-whisper's native word timestamps instead. The ASR model itself must
 still be cached, and alignment computation errors still fail explicitly.
+Both `HF_HUB_OFFLINE` and `TRANSFORMERS_OFFLINE` disable optional Torch, Hugging
+Face and NLTK alignment downloads: `1`, `on`, `yes` and `true` are accepted
+case-insensitively. Complete cached aligners still run on the selected GPU;
+missing optional assets retain native ASR timing without moving inference to CPU.
 The aligner may split a transcript segment into multiple sentences. This is
 accepted when the transcript text is preserved in order (ignoring whitespace)
 and every returned word has timestamps; dropped or changed text is rejected.

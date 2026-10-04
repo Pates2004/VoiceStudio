@@ -57,6 +57,9 @@ No development SDK dependency or production environment workaround is added.
   errors still fail explicitly. Sentence splitting is accepted only when all
   transcript text is preserved in order and returned words have timestamps.
   This is not the full WhisperX engine.
+  Either `HF_HUB_OFFLINE` or `TRANSFORMERS_OFFLINE` set to `1`, `on`, `yes` or
+  `true` (case-insensitive) prevents optional alignment downloads. Cached
+  aligners still use the selected GPU; this does not introduce CPU inference.
 - The source pyannote 3.x adapter restores metadata and explicit soundfile reads
   removed by torchaudio 2.9 without modifying installed dependencies or tensor
   execution. An audio-adapter pass does not prove GPU kernels or diarization.
