@@ -22,6 +22,9 @@ Nie instaluje sterownika, WSL, narzędzi C++ ani deweloperskiego SDK. Wznowienie
 oraz naprawa są jawne i muszą zachowywać dane. Zmiana pełnego znacznika receptury
 wymaga naprawy starszego eksperymentalnego środowiska; samo sprawdzenie gotowości
 go nie przebudowuje.
+Konfigurator desktopowy i naprawa pomijają zapisane w lockfile pakiety CUDA Torch
+oraz biblioteki NVIDIA przed instalacją sprawdzonych kół Windows HIP. Nie muszą
+najpierw pobierać tymczasowego stosu CUDA; poniższe polecenia dla źródeł to osobna ścieżka.
 
 ## Wspólna receptura i źródła
 
@@ -53,7 +56,9 @@ obejścia przez zmienne środowiskowe.
   słów może korzystać z niezależnego modułu wyrównywania WhisperX; szybkie
   dyktowanie i tłumaczenie nie używają tej ścieżki. Nieobsługiwany język lub
   brak opcjonalnych zasobów offline pozostawia rodzime znaczniki słów.
-  Błędy obliczania wyrównania nadal są zgłaszane. To nie jest pełny WhisperX.
+  Błędy obliczania wyrównania nadal są zgłaszane. Podział na zdania jest poprawny
+  tylko przy zachowaniu całego tekstu w tej samej kolejności i znaczników czasu słów.
+  To nie jest pełny WhisperX.
 - Adapter pyannote 3.x przywraca metadane i jawne odczyty soundfile usunięte
   w torchaudio 2.9 bez zmiany zainstalowanych zależności ani obliczeń tensorowych.
   Test adaptera nie potwierdza jąder GPU ani diaryzacji.

@@ -9,6 +9,7 @@ metadata and the backend fallback mirror it.
 ## [Unreleased]
 
 **Highlights**
+- Skip locked CUDA packages during native Windows ROCm setup and repair (#2607) — thanks @Pates2004!
 - Preserve complete ROCm transcripts when forced alignment splits sentences (#2607) — thanks @Pates2004!
 - Draft native Windows ROCm desktop and engine integration shares the reviewed recipe; full WhisperX remains unavailable (#2468) — thanks @Pates2004!
 - Reserve migration snapshot counters atomically (#2453) — thanks @rudycelekli!

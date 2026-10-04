@@ -596,6 +596,84 @@ describe('packaged runtime setup', () => {
       platform.mockRestore();
     }
   });
+  it.each(['fresh', 'healthy', 'broken'])(
+    'never syncs locked CUDA packages during Windows ROCm %s setup',
+    async (state) => {
+      forcePlatform('win32');
+      vi.spyOn(process, 'arch', 'get').mockReturnValue('x64');
+      const { bundle, project } = await fixture();
+      await writeFile(
+        join(bundle, 'uv.lock'),
+        ['torch', 'torchaudio', 'torchvision', 'nvidia-cublas-cu12', 'nvidia-ml-py']
+          .map((name) => `[[package]]\nname = "${name}"`)
+          .join('\n'),
+      );
+      if (state !== 'fresh') await interpreter(project);
+      let synced = false;
+      const run = vi.fn(async (_command: string, args: string[]) => {
+        if (
+          state === 'broken' &&
+          !synced &&
+          (args[1] === RUNTIME_IMPORT_PROBE || args[1] === RUNTIME_NATIVE_IMPORT_PROBE)
+        ) {
+          throw new Error('broken native torch library');
+        }
+        if (args[0] === 'sync') {
+          synced = true;
+          await interpreter(project);
+        }
+        if (args[0] === '-c' && args[1]?.includes('Expected ROCm wheel missing')) {
+          await writeFile(args[5]!, 'verified wheel');
+        }
+      });
+      await installRuntime(
+        bundle,
+        project,
+        'uv',
+        run,
+        new AbortController().signal,
+        undefined,
+        'global',
+        'rocm',
+      );
+      const sync = run.mock.calls.find(([, args]) => args[0] === 'sync')![1];
+      const skipped = sync.flatMap((arg, index) =>
+        arg === '--no-install-package' ? [sync[index + 1]] : [],
+      );
+      expect(skipped).toEqual([...RUNTIME_REPAIR_PACKAGES, 'nvidia-cublas-cu12']);
+      expect(sync).not.toContain('--reinstall-package');
+      expect(sync).toContain(state === 'fresh' ? '--managed-python' : runtimePython(project));
+      expect(run.mock.calls.find(([, args]) => args[0] === '--no-config')?.[1]).toEqual(
+        rocmTorchInstallArgs(runtimePython(project), 'win32'),
+      );
+      expect(
+        run.mock.calls.filter(([, args]) => args[0] === 'cache').map(([, args]) => args),
+      ).toEqual(state === 'broken' ? [['cache', 'clean', ...RUNTIME_REPAIR_PACKAGES]] : []);
+      expect(await runtimeReady(bundle, project, 'rocm')).toBe(true);
+      expect(await runtimeReady(bundle, project, 'default')).toBe(false);
+      expect(await runtimeInstallInterrupted(project)).toBe(false);
+    },
+  );
+  it.each<[NodeJS.Platform, TorchVariant]>([
+    ['win32', 'default'],
+    ['win32', 'cpu'],
+    ['linux', 'default'],
+    ['linux', 'cpu'],
+    ['linux', 'rocm'],
+    ['darwin', 'default'],
+  ])('preserves the frozen sync contract for %s %s', async (platform, variant) => {
+    forcePlatform(platform);
+    vi.spyOn(process, 'arch', 'get').mockReturnValue(platform === 'darwin' ? 'arm64' : 'x64');
+    const { bundle, project, run } = await installRecipeFixture(variant);
+    const sync = run.mock.calls.find(([, args]) => args[0] === 'sync')![1];
+    const skipped = sync.flatMap((arg, index) =>
+      arg === '--no-install-package' ? [sync[index + 1]] : [],
+    );
+    expect(skipped).toEqual(variant === 'cpu' ? [...RUNTIME_REPAIR_PACKAGES] : []);
+    expect(sync).toContain('--frozen');
+    expect(run.mock.calls.some(([, args]) => args[0] === '--no-config')).toBe(false);
+    expect(await runtimeReady(bundle, project, variant)).toBe(true);
+  });
   it('ignores the ROCm opt-in on Windows ARM where no native ROCm wheels exist', async () => {
     forcePlatform('win32');
     vi.spyOn(process, 'arch', 'get').mockReturnValue('arm64');

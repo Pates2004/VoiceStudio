@@ -830,13 +830,14 @@ export async function installRuntime(
         managedPythonRequest(process.platform, process.arch, torch.variant),
       ];
   const cpuTorch = torch.variant === 'cpu';
+  const skipLockedTorch = cpuTorch || windowsRocm;
   // A failed native import may leave distribution metadata intact, so uv's
   // ordinary sync would otherwise consider the broken wheel already satisfied.
   const torchPackages: readonly string[] = RUNTIME_REPAIR_PACKAGES;
-  // A CPU install never syncs the lock's CUDA torch, so its repair goes through
-  // the CPU pip install below instead of `uv sync --reinstall-package`.
+  // CPU and Windows ROCm repairs use their variant-specific install below,
+  // never the lock's CUDA torch through `uv sync --reinstall-package`.
   const repairArgs = repairPackages
-    .filter((name) => !cpuTorch || !torchPackages.includes(name))
+    .filter((name) => !skipLockedTorch || !torchPackages.includes(name))
     .flatMap((name) => ['--reinstall-package', name]);
   signal.throwIfAborted();
   if (repairPackages.length) {
@@ -847,9 +848,9 @@ export async function installRuntime(
     signal.throwIfAborted();
   }
   // The lock resolves torch to the CUDA build (and, on Linux, ~3 GB of nvidia-*
-  // runtime wheels) for every Linux/Windows x64 host. Keep those out of a CPU
-  // install; the CPU wheels are laid down right after the frozen sync.
-  const skipArgs = cpuTorch
+  // runtime wheels) for every Linux/Windows x64 host. CPU and Windows ROCm
+  // install their own wheels right after the frozen sync instead.
+  const skipArgs = skipLockedTorch
     ? [
         ...torchPackages,
         ...cudaOnlyPackages(await readFile(join(project, 'uv.lock'), 'utf8')),

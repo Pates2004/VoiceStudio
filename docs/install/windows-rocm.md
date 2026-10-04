@@ -21,6 +21,9 @@ not install drivers, WSL, Visual Studio Build Tools or the development SDK.
 Interrupted setup and repair remain explicit and must preserve user data.
 Older experimental readiness markers require explicit repair after the complete
 recipe stamp changes; checking readiness does not rewrite a runtime.
+Desktop setup and repair exclude the lockfile's CUDA Torch and NVIDIA runtime
+packages before installing the reviewed Windows HIP wheels. They do not need to
+download a temporary CUDA stack first; the source-sync commands below are separate.
 
 ## Shared recipe and source setup
 
@@ -51,7 +54,9 @@ No development SDK dependency or production environment workaround is added.
   transcription requests can use the independent WhisperX aligner; fast
   dictation and translation do not. Unsupported languages or unavailable
   optional offline assets retain native word timestamps. Alignment computation
-  errors still fail explicitly. This is not the full WhisperX engine.
+  errors still fail explicitly. Sentence splitting is accepted only when all
+  transcript text is preserved in order and returned words have timestamps.
+  This is not the full WhisperX engine.
 - The source pyannote 3.x adapter restores metadata and explicit soundfile reads
   removed by torchaudio 2.9 without modifying installed dependencies or tensor
   execution. An audio-adapter pass does not prove GPU kernels or diarization.
