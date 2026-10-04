@@ -1,6 +1,7 @@
 # Maintaining the native Windows ROCm recipe
 
-This is a contributor contract, **not a full AMD support declaration**. PR #2600
+This is a contributor contract for a **DRAFT, not fully validated desktop integration**,
+not a full AMD support declaration. PR #2600
 contains the opt-in source bootstrap and standalone offline smoke only. Desktop
 integration and application-engine validation are separate review scopes. Do not
 merge a broad workstation checkpoint in place of those focused changes.
@@ -14,8 +15,9 @@ working directory. Keep the JSON beside the script when distributing source.
 No dependencies or network access are needed to read it.
 
 Desktop integrations should import this same file at build time, not keep
-another list of Windows pins or download a mutable online manifest. The source-only
-PR does not modify Electron; consuming this contract is a separate integration.
+another list of Windows pins or download a mutable online manifest. This desktop
+draft imports it; source-only PR #2600 remains its prerequisite. Sidecar pins and
+verification markers still need separate maintenance and consistency checks.
 Vite embeds the recipe in the main-process bundle, so the installed app need not
 read a source checkout. Linux ROCm, default CUDA, macOS and CPU recipes remain
 unchanged; do not apply the Windows 2.9 stack to those platforms.
@@ -45,7 +47,7 @@ Use the test environment already provisioned for the checkout. Do **not** run
 `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1` and `HF_HUB_CACHE` to an empty directory.
 
 ```text
-python -m pytest tests/test_windows_rocm_recipe.py tests/test_setup_rocm_variant.py tests/test_windows_rocm_smoke.py tests/test_rocm_torch_pins_match_pyproject.py -q
+python -m pytest tests/test_windows_rocm_recipe.py tests/test_setup_rocm_variant.py tests/test_windows_rocm_smoke.py tests/test_windows_rocm_miopen_smoke.py tests/test_rocm_torch_pins_match_pyproject.py -q
 ```
 
 The recipe tests check version/ABI/hash structure, script-relative loading with
@@ -81,8 +83,8 @@ headers needed by the tested MIOpen path. A development-header experiment is not
 automatic SDK provisioning; do not set global environment variables, disable
 MIOpen process-wide, modify installed dependencies, or advertise the full engine
 based on an import or VAD-only pass. Gated diarization bundles require the user's
-own access/license decision. Header installation, space/Unicode paths and the
-full diarization pipeline remain unverified release requirements.
+own access/license decision. Automatic header provisioning, robust space/Unicode
+paths and the full diarization pipeline remain release requirements.
 
 ## Contribution boundaries
 
@@ -97,3 +99,57 @@ full diarization pipeline remain unverified release requirements.
 
 The contributor CLA, maintainer approval of fork CI, and approval of AMD/CT2
 download endpoints are distinct gates. A green bot review is none of those.
+
+## Current draft boundaries
+
+Only selected desktop/runtime, ASR/sidecar, audio-compatibility and readiness
+changes are included. Independent worker, capture-language and cached-WAV fixes
+from earlier local builds are excluded. Historical whole-tree test and installer
+results do not certify this selective branch. No new installer is supplied.
+
+Keep full WhisperX unavailable. Developer-reported official SDK initialization
+passed offline under Unicode/spaced paths. The same staged dependencies through
+ASCII aliases, including one with spaces, passed default-MIOpen VAD + tiny ASR +
+English alignment on GPU (17/17 words, normal exit, kernel cache off, ROCM_PATH
+only, no HIPRTC append or global SDK modules). Non-ASCII paths, including Polish
+names, still fail: all-Unicode setup hit temporary-path character conversion at
+instance_norm; an ASCII interpreter/temp with Unicode ROCM_PATH passed that step
+but LSTM reported a missing rocRAND header despite its presence. Failed runs
+could hang on shutdown. Python UTF-8 and locale.LC_ALL=.UTF8 did not fix this.
+Root/temp isolation remains diagnostic, not a production fix; do not add devel
+pins or initialization to this recipe yet.
+
+Word timestamps are already requested by dubbing/accurate capture. WhisperX and
+MLX already align that request on their supported paths; the HIP faster-whisper
+implementation restores it without enabling alignment for fast dictation or
+translation. Hardware-specific implementation alone is not evidence of a
+behavioral-parity violation. Preserve the working path while reviewing optional
+asset downloads, errors, and timestamp semantics. AMD/CT2 endpoint approval does
+not automatically approve NLTK or TorchAudio model downloads.
+
+The compute selector uses the shared keyboard-capable SearchableSelect with
+localized labels and a portal. Its compatibility warning is essential, not an
+optional usage tip. Real NVDA verification remains outstanding.
+
+Before promotion, reconcile current upstream and overlapping PRs #2602/#2605,
+validate this exact branch offline
+with an empty cache, and complete the existing hardware/accessibility gates.
+Do not upload local audits, installations, models, diagnostic logs or SDK copies.
+
+## Model-free MIOpen diagnostic
+
+Run the evaluated interpreter with `scripts/smoke_windows_rocm.py --miopen`.
+This opt-in test adds GPU InstanceNorm and a four-layer bidirectional LSTM
+(input size 60, hidden size 128, configured dropout 0.5, eval mode). It requires
+actual `aten::miopen_rnn` dispatch, finite GPU outputs and a disabled kernel
+cache. A small zero-dropout LSTM is insufficient: it passed in an environment
+where the VAD-shaped LSTM and actual WhisperX failed to load rocRAND headers.
+No models, development SDK or headers are downloaded or initialized by the flag.
+
+A developer test on RX 9070 XT with the initialized official 7.2.1 devel wheel
+passed through ASCII and ASCII-with-spaces SDK paths. A Polish path reproduced
+the native failure/shutdown hang; the isolated smoke returned `worker_timeout`
+and left no smoke Python processes. These are kernel diagnostics, not speech
+quality, diarization, clean-install or general GPU compatibility certification.
+The timeout stops only the owned worker tree, including Windows venv launchers;
+native stderr and local paths are not forwarded into the shareable JSON.

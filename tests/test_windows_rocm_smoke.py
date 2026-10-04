@@ -424,7 +424,7 @@ def test_cli_stdout_is_json_only_and_native_output_is_not_disclosed(runtime, mon
     runner = Mock(return_value=SimpleNamespace(returncode=0 if ok else 1,
                   stdout="private native output\n" + smoke.REPORT_PREFIX + json.dumps(child) + "\n",
                   stderr="private DLL path"))
-    monkeypatch.setattr(smoke.subprocess, "run", runner)
+    monkeypatch.setattr(smoke, "_run_worker", runner)
     assert smoke.main([]) == (0 if ok else 1)
     captured = capsys.readouterr()
     assert json.loads(captured.out) == child
@@ -433,7 +433,6 @@ def test_cli_stdout_is_json_only_and_native_output_is_not_disclosed(runtime, mon
     command = runner.call_args.args[0]
     assert command[:2] == [sys.executable, "-B"]
     assert "--_worker" in command
-    assert runner.call_args.kwargs["capture_output"] is True
     assert runner.call_args.kwargs["timeout"] == 180
     assert all(runner.call_args.kwargs["env"][key] == value for key, value in smoke.OFFLINE_ENV.items())
 
@@ -442,7 +441,7 @@ def test_cli_stdout_is_json_only_and_native_output_is_not_disclosed(runtime, mon
                                                     (1, smoke.REPORT_PREFIX + '{"schema_version":1,"ok":true}'),
                                                     (0, smoke.REPORT_PREFIX + "not-json")])
 def test_crash_missing_or_contradictory_worker_report_cannot_pass(runtime, monkeypatch, returncode, output):
-    monkeypatch.setattr(smoke.subprocess, "run", Mock(return_value=SimpleNamespace(
+    monkeypatch.setattr(smoke, "_run_worker", Mock(return_value=SimpleNamespace(
         returncode=returncode, stdout=output, stderr="private diagnostics")))
     assert_failure(smoke._run_isolated(runtime.args, []), "worker_failed")
 
@@ -450,13 +449,13 @@ def test_crash_missing_or_contradictory_worker_report_cannot_pass(runtime, monke
 @pytest.mark.parametrize("error,code", [(subprocess.TimeoutExpired("private command", 1, output="private output"), "worker_timeout"),
                                       (OSError("private executable path"), "worker_failed")])
 def test_worker_timeout_or_spawn_failure_is_private(runtime, monkeypatch, error, code):
-    monkeypatch.setattr(smoke.subprocess, "run", Mock(side_effect=error))
+    monkeypatch.setattr(smoke, "_run_worker", Mock(side_effect=error))
     assert_failure(smoke._run_isolated(runtime.args, []), code)
 
 
 def test_invalid_timeout_does_not_spawn(runtime, monkeypatch):
     runner = Mock()
-    monkeypatch.setattr(smoke.subprocess, "run", runner)
+    monkeypatch.setattr(smoke, "_run_worker", runner)
     runtime.args.timeout = 0
     assert_failure(smoke._run_isolated(runtime.args, []), "invalid_timeout")
     runner.assert_not_called()

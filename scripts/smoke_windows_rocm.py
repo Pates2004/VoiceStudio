@@ -26,6 +26,12 @@ Supply a complete converted faster-whisper model directory
 No transcript, filenames, machine/user identifiers or raw exceptions are
 reported. Speech quality must be evaluated separately by the operator.
 
+Add --miopen for model-free InstanceNorm and LSTM checks using the native
+MIOpen RNN dispatcher, with its kernel cache disabled. This exercises additional
+SDK/header and native-path requirements that matmul alone does not. Provision development
+headers separately and supply ROCM_PATH if required. No SDK is installed or
+initialized by this smoke, and a kernel pass does not certify WhisperX.
+
 This script has no backend dependencies or local CT2 compatibility wrappers.
 It retains DLL-directory handles for the wheel's ROCm SDK directories; use
 --dll-dir for an explicitly installed SDK's bin directory if needed. NVIDIA
@@ -38,7 +44,8 @@ a native crash/timeout fails the smoke without promising a partial report.
 from __future__ import annotations
 
 import argparse
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
+import ctypes
 import importlib
 import importlib.metadata
 import importlib.util
@@ -48,8 +55,10 @@ import mmap
 import os
 from pathlib import Path
 import platform
+import signal
 import subprocess
 import sys
+import threading
 import time
 import wave
 
@@ -97,6 +106,7 @@ def _report(args: argparse.Namespace) -> dict:
         "torch": {"version": _version("torch")},
         "ctranslate2": {"version": _version("ctranslate2"), "status": "not_tested"},
         "asr": {"status": "not_tested" if args.model_dir or args.wav else "not_requested"},
+        "miopen": {"status": "not_tested" if args.miopen else "not_requested"},
     }
 
 
@@ -187,6 +197,36 @@ def _torch_smoke(args: argparse.Namespace, report: dict):
     return torch
 
 
+def _miopen_smoke(args: argparse.Namespace, report: dict, torch) -> None:
+    """Exercise VAD-shaped native MIOpen dispatch on the selected HIP GPU.
+
+    A multilayer LSTM with configured dropout exercises rocRAND header loading
+    even in eval mode. A small zero-dropout LSTM can pass while this path fails.
+    Synthetic tensors and random weights are not a speech/model quality check.
+    """
+    _require(torch.backends.cudnn.enabled, "miopen_disabled", "Native MIOpen dispatch must be enabled for this check.")
+    device = f"cuda:{args.device_index}"
+    started = time.perf_counter()
+    with torch.inference_mode(), torch.autograd.profiler.profile(use_cuda=False) as trace:
+        inputs = torch.ones((1, 60, 293), dtype=torch.float32, device=device)
+        normalizer = torch.nn.InstanceNorm1d(60).to(device)
+        recurrent = torch.nn.LSTM(60, 128, num_layers=4, dropout=0.5,
+                                  batch_first=True, bidirectional=True).to(device).eval()
+        normalized = normalizer(inputs)
+        output, (hidden, cell) = recurrent(normalized.transpose(1, 2))
+        tensors = (inputs, normalized, output, hidden, cell, *recurrent.parameters())
+        _require(all(tensor.device.type == "cuda" and tensor.device.index == args.device_index for tensor in tensors),
+                 "miopen_tensor_not_gpu", "MIOpen inputs, parameters or outputs left the selected HIP GPU.")
+        torch.cuda.synchronize(args.device_index)
+        _require(all(bool(torch.isfinite(tensor).all().item()) for tensor in (normalized, output, hidden, cell)),
+                 "miopen_nonfinite", "MIOpen returned nonfinite output.")
+    dispatched = any(event.name == "aten::miopen_rnn" for event in trace.function_events)
+    _require(dispatched, "miopen_not_executed", "The native MIOpen RNN dispatcher was not executed; no fallback is accepted.")
+    report["miopen"].update(status="passed", device=device, output_shape=list(output.shape),
+                            native_rnn_dispatch=True, kernel_cache_disabled=True,
+                            elapsed_seconds=round(time.perf_counter() - started, 6))
+
+
 def _ct2_directory() -> Path:
     """Locate CT2 without importing it and require its HIP DLL dependency markers."""
     spec = importlib.util.find_spec("ctranslate2")
@@ -258,6 +298,8 @@ def _run_smoke(args: argparse.Namespace) -> dict:
     """Force model-library offline mode and return a sanitized success/error report."""
     report = _report(args)
     os.environ.update(OFFLINE_ENV)
+    if args.miopen:
+        os.environ["MIOPEN_DISABLE_CACHE"] = "1"
     try:
         _local_inputs(args)
         with ExitStack() as stack:
@@ -265,6 +307,9 @@ def _run_smoke(args: argparse.Namespace) -> dict:
                 stack.enter_context(os.add_dll_directory(str(directory)))
             report["stage"] = "torch"
             torch = _torch_smoke(args, report)
+            if args.miopen:
+                report["stage"] = "miopen"
+                _miopen_smoke(args, report, torch)
             if args.model_dir is not None:
                 report["stage"] = "asr"
                 _asr_smoke(args, report, torch)
@@ -281,6 +326,191 @@ def _run_smoke(args: argparse.Namespace) -> dict:
     return report
 
 
+class _JobBasicLimits(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_int64), ("PerJobUserTimeLimit", ctypes.c_int64),
+        ("LimitFlags", ctypes.c_uint32), ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t), ("ActiveProcessLimit", ctypes.c_uint32),
+        ("Affinity", ctypes.c_size_t), ("PriorityClass", ctypes.c_uint32),
+        ("SchedulingClass", ctypes.c_uint32),
+    ]
+
+
+class _JobIoCounters(ctypes.Structure):
+    _fields_ = [(name, ctypes.c_uint64) for name in (
+        "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+        "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
+    )]
+
+
+class _JobExtendedLimits(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", _JobBasicLimits), ("IoInfo", _JobIoCounters),
+        ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t),
+    ]
+
+
+class _ThreadEntry(ctypes.Structure):
+    _fields_ = [
+        ("dwSize", ctypes.c_uint32), ("cntUsage", ctypes.c_uint32),
+        ("th32ThreadID", ctypes.c_uint32), ("th32OwnerProcessID", ctypes.c_uint32),
+        ("tpBasePri", ctypes.c_int32), ("tpDeltaPri", ctypes.c_int32), ("dwFlags", ctypes.c_uint32),
+    ]
+
+
+def _windows_api():
+    """Bind documented Win32 job, process and Tool Help thread APIs lazily."""
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle = ctypes.c_void_p
+    dword = ctypes.c_uint32
+    boolean = ctypes.c_int32
+    signatures = {
+        "CreateJobObjectW": ([handle, ctypes.c_wchar_p], handle),
+        "SetInformationJobObject": ([handle, ctypes.c_int32, handle, dword], boolean),
+        "AssignProcessToJobObject": ([handle, handle], boolean),
+        "CloseHandle": ([handle], boolean),
+        "OpenProcess": ([dword, boolean, dword], handle),
+        "CreateToolhelp32Snapshot": ([dword, dword], handle),
+        "Thread32First": ([handle, ctypes.POINTER(_ThreadEntry)], boolean),
+        "Thread32Next": ([handle, ctypes.POINTER(_ThreadEntry)], boolean),
+        "OpenThread": ([dword, boolean, dword], handle),
+        "GetProcessIdOfThread": ([handle], dword),
+        "ResumeThread": ([handle], dword),
+    }
+    for name, (arguments, result) in signatures.items():
+        function = getattr(api, name)
+        function.argtypes = arguments
+        function.restype = result
+    api.last_error = ctypes.get_last_error
+    return api
+
+
+class _WindowsJob:
+    """Own a non-inheritable KILL_ON_JOB_CLOSE job, without allowing breakaway.
+
+    Popen closes CreateProcess's primary-thread handle. Find that thread with
+    Tool Help while the root is still CREATE_SUSPENDED, verify its owner, then
+    ResumeThread only after job assignment. Ambiguous threads fail closed.
+    """
+
+    def __init__(self):
+        self.api = _windows_api()
+        self.handle = self.api.CreateJobObjectW(None, None)
+        self._check(self.handle)
+        try:
+            limits = _JobExtendedLimits()
+            limits.BasicLimitInformation.LimitFlags = 0x00002000
+            self._check(self.api.SetInformationJobObject(self.handle, 9, ctypes.byref(limits), ctypes.sizeof(limits)))
+        except BaseException:
+            self.close()
+            raise
+
+    @staticmethod
+    def _check(condition):
+        _require(bool(condition), "worker_isolation_failed",
+                 "Could not safely establish or close the Windows worker job; no unowned worker is allowed.")
+
+    def close(self):
+        if self.handle:
+            self._check(self.api.CloseHandle(self.handle))
+            self.handle = None
+
+    def assign_and_resume(self, process_id):
+        process = self.api.OpenProcess(0x0101, False, process_id)
+        self._check(process)
+        try:
+            self._check(self.api.AssignProcessToJobObject(self.handle, process))
+        finally:
+            self._check(self.api.CloseHandle(process))
+        snapshot = self.api.CreateToolhelp32Snapshot(0x00000004, 0)
+        self._check(snapshot not in (None, ctypes.c_void_p(-1).value))
+        try:
+            entry = _ThreadEntry()
+            entry.dwSize = ctypes.sizeof(entry)
+            found = self.api.Thread32First(snapshot, ctypes.byref(entry))
+            threads = []
+            while found:
+                self._check(entry.dwSize >= _ThreadEntry.th32OwnerProcessID.offset + 4)
+                if entry.th32OwnerProcessID == process_id:
+                    threads.append(entry.th32ThreadID)
+                entry.dwSize = ctypes.sizeof(entry)
+                found = self.api.Thread32Next(snapshot, ctypes.byref(entry))
+            self._check(self.api.last_error() == 18 and len(threads) == 1)
+        finally:
+            self._check(self.api.CloseHandle(snapshot))
+        thread = self.api.OpenThread(0x0802, False, threads[0])
+        self._check(thread)
+        try:
+            self._check(self.api.GetProcessIdOfThread(thread) == process_id)
+            self._check(self.api.ResumeThread(thread) == 1)
+        finally:
+            self._check(self.api.CloseHandle(thread))
+
+
+@contextmanager
+def _defer_sigint():
+    """Do not lose newly acquired handles or interrupt their cleanup on Ctrl+C."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    previous = signal.getsignal(signal.SIGINT)
+    pending = []
+
+    def defer(signum, frame):
+        if not pending:
+            pending.append((signum, frame))
+
+    if previous == signal.SIG_IGN:
+        yield
+        return
+    signal.signal(signal.SIGINT, defer)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, previous)
+        if pending:
+            if callable(previous):
+                previous(*pending[0])
+            else:
+                signal.raise_signal(signal.SIGINT)
+
+
+def _run_worker(command: list[str], *, timeout: int, env: dict) -> subprocess.CompletedProcess:
+    """Assign a suspended Windows root before execution; close its job on every exit.
+
+    Closing the job also stops descendants after the root has exited, before
+    draining inherited pipes. Assignment failure kills the still-suspended root.
+    Non-Windows control-flow tests need no Win32 bindings or native runtimes.
+    """
+    job = None
+    process = None
+    try:
+        with _defer_sigint():
+            job = _WindowsJob() if sys.platform == "win32" else None
+            process = subprocess.Popen(
+                command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, encoding="utf-8", errors="replace", env=env, close_fds=True,
+                creationflags=0x08000004 if job is not None else 0,
+            )
+            if job is not None:
+                job.assign_and_resume(process.pid)
+        stdout, stderr = process.communicate(timeout=timeout)
+        return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    finally:
+        with _defer_sigint():
+            try:
+                if job is not None:
+                    job.close()
+            finally:
+                if process is not None:
+                    try:
+                        if process.poll() is None:
+                            process.kill()
+                    finally:
+                        process.communicate(timeout=15)
+
+
 def _run_isolated(args: argparse.Namespace, argv: list[str]) -> dict:
     """Run a deadline-bound child and validate its report against the exit status.
 
@@ -291,10 +521,9 @@ def _run_isolated(args: argparse.Namespace, argv: list[str]) -> dict:
     report["stage"] = "worker"
     try:
         _require(args.timeout > 0, "invalid_timeout", "Timeout must be positive.")
-        result = subprocess.run(
+        result = _run_worker(
             [sys.executable, "-B", str(Path(__file__).resolve()), "--_worker", *argv],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=args.timeout,
-            env={**os.environ, **OFFLINE_ENV}, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            timeout=args.timeout, env={**os.environ, **OFFLINE_ENV},
         )
         reports = [line[len(REPORT_PREFIX):] for line in result.stdout.splitlines() if line.startswith(REPORT_PREFIX)]
         if result.returncode in (0, 1) and reports:
@@ -307,7 +536,7 @@ def _run_isolated(args: argparse.Namespace, argv: list[str]) -> dict:
         report["error"] = {"code": "worker_timeout", "message": "Native smoke exceeded the requested timeout."}
     except SmokeError as error:
         report["error"] = {"code": error.code, "message": str(error)}
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError, subprocess.CalledProcessError):
         report["error"] = {"code": "worker_failed", "message": "Could not run or decode the native smoke worker."}
     return report
 
@@ -317,6 +546,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-dir", type=Path, help="Explicit local converted faster-whisper model directory")
     parser.add_argument("--wav", type=Path, help="Explicit local real speech PCM WAV (up to 60 seconds)")
     parser.add_argument("--device-index", type=int, default=0)
+    parser.add_argument("--miopen", action="store_true", help="Also verify native MIOpen InstanceNorm/LSTM without model downloads")
     parser.add_argument("--compute-type", choices=("float16", "float32"), default="float16")
     parser.add_argument("--dll-dir", action="append", type=Path, default=[], help="Additional trusted local DLL directory")
     parser.add_argument("--timeout", type=int, default=180, help="Worker deadline in seconds (default: 180)")
