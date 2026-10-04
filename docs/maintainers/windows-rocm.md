@@ -100,6 +100,60 @@ paths and the full diarization pipeline remain release requirements.
 The contributor CLA, maintainer approval of fork CI, and approval of AMD/CT2
 download endpoints are distinct gates. A green bot review is none of those.
 
+## Review and landing map
+
+[PR #2607](https://github.com/debpalash/VoiceStudio/pull/2607) stacks the desktop
+draft on [PR #2600](https://github.com/debpalash/VoiceStudio/pull/2600). Its diff
+against main includes the source bootstrap; do not apply that dependency twice.
+Review or land the source contribution first, then reconcile the draft against
+current main and overlapping runtime/ASR work such as #2602 and #2605. Do not
+replace whole files with an older branch to resolve conflicts.
+
+| Review unit | Implementation boundary | Main regression coverage |
+| --- | --- | --- |
+| Source bootstrap | `scripts/setup.py`, shared recipe and offline smoke | `test_setup_rocm_variant.py`, `test_windows_rocm_recipe.py`, Windows ROCm smoke tests |
+| Desktop provisioning | Electron `runtime-project.ts`, `runtime-torch.ts`, download and backend setup | `runtime-*.test.ts`, `test_electron_rocm_probes.py`, `test_electron_rehearsal_runtime.py` |
+| ASR and word alignment | `backend/services/asr_backend.py`, unchanged CPU/CUDA alternatives | `test_asr_windows_rocm_ct2.py`, device-aware/GPU-compat tests, isolated ASR OOM tests |
+| Audio compatibility | `pyannote_audio_compat.py` and the model-manager boundary | `test_pyannote_audio_compat.py`, torchaudio I/O and pyannote compatibility tests |
+| Isolated engines | `sidecar_install.py`, VoxCPM2/CosyVoice subprocess boundaries | `test_sidecar_install.py`, both subprocess test files |
+
+The reliability follow-up is split into reviewable commits on this draft:
+
+- `8e04c16e`: accept legitimate sentence splitting while rejecting missing,
+  reordered or replaced transcript text; retain the timed-word requirement.
+- `51772b29`: exclude locked CUDA Torch/NVIDIA wheels before native Windows HIP
+  installation or repair; preserve default, CPU, Linux and macOS branches.
+- `c9891f65`: publish complete sidecar verification markers atomically; interrupted
+  writes cannot look like a valid legacy CPU installation and suppress repair.
+
+These are incremental fixes on the draft, not independent feature backports to
+main. Their regression tests and user documentation are included in the commits.
+No workstation profile, installed model, internal audit or SDK copy is required
+to run the deterministic tests.
+
+In a normally provisioned contributor test environment, with offline flags and
+an initially empty HF cache as above, the focused Python entry points include:
+
+```text
+python -m pytest tests/test_asr_windows_rocm_ct2.py tests/test_asr_device_aware_autodetect.py tests/test_asr_gpu_compat.py tests/test_sidecar_install.py tests/test_cosyvoice_subprocess.py tests/test_voxcpm2_subprocess.py tests/test_electron_rocm_probes.py tests/test_electron_rehearsal_runtime.py -q
+python -m pytest backend/tests/test_asr_oom_fallback.py -q
+```
+
+Electron's existing `bun run --cwd electron test` includes the runtime test
+files; `bun run --cwd electron typecheck` checks both processes. The regular CI
+suites collect these regressions; no Radeon-only CI dependency was added.
+Run the full required CI and review findings before landing, not only this subset.
+
+The alignment follow-up also received a narrow offline RX 9070 XT test with the
+existing torch 2.9.1+rocm7.2.1 / CT2 4.8.2 HIP runtime: real tiny-model speech
+recognition and GPU wav2vec2 alignment. To deterministically exercise splitting,
+the diagnostic inserted one sentence boundary in the recognized text before
+alignment; it did not replace either model. The real aligner returned two
+segments from one, preserving 18/18 timed words. The old guard rejected that
+valid result and the fixed guard accepted it. An unmodified-text control also
+passed. This controlled fixture is not a transcription-quality, fresh-install,
+full WhisperX or broad hardware certification.
+
 ## Current draft boundaries
 
 Only selected desktop/runtime, ASR/sidecar, audio-compatibility and readiness
