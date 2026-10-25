@@ -2942,6 +2942,7 @@
     "channels_stereo": "Stereo"
   },
   "tts_errors": {
+    "video_retime_fps_unavailable": "Smart Fit kann die Bildrate des Quellvideos nicht ermitteln. Prüfe die Quelldatei und die Medienwerkzeuge und versuche es erneut.",
     "profile_language_rejected": "Automatisch verwendet die Sprache des Stimmprofils ({{language}}), die diese Engine nicht unterstützt. Ändere die Profilsprache, wähle eine unterstützte Sprache oder wechsle die Engine.",
     "generation_in_progress": "Eine Generierung läuft bereits – warte, bis sie abgeschlossen ist, bevor du eine weitere startest.",
     "error_prefix": "Fehler: {{message}}",

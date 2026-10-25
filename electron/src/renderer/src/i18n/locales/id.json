@@ -2942,6 +2942,7 @@
     "channels_stereo": "Stereo"
   },
   "tts_errors": {
+    "video_retime_fps_unavailable": "Smart Fit tidak dapat menentukan laju bingkai video sumber. Periksa berkas sumber dan alat media, lalu coba lagi.",
     "profile_language_rejected": "Otomatis menggunakan bahasa profil suara ({{language}}), yang tidak didukung mesin ini. Ubah bahasa profil, pilih bahasa yang didukung, atau ganti mesin.",
     "generation_in_progress": "Pembuatan sedang berjalan — tunggu hingga selesai sebelum memulai yang lain.",
     "error_prefix": "Kesalahan: {{message}}",

@@ -2942,6 +2942,7 @@
     "channels_stereo": "Stereo"
   },
   "tts_errors": {
+    "video_retime_fps_unavailable": "Smart Fit kan inte fastställa källvideons bildfrekvens. Kontrollera källfilen och medieverktygen och försök sedan igen.",
     "profile_language_rejected": "Auto använder röstprofilens språk ({{language}}), som denna motor inte stöder. Ändra profilens språk, välj ett språk som stöds eller byt motor.",
     "generation_in_progress": "En generering pågår redan – vänta tills den är klar innan du startar en ny.",
     "error_prefix": "Fel: {{message}}",

@@ -2946,6 +2946,7 @@
     "channels_stereo": "Stereo"
   },
   "tts_errors": {
+    "video_retime_fps_unavailable": "Smart Fit nie może ustalić liczby klatek na sekundę w filmie źródłowym. Sprawdź plik źródłowy i narzędzia multimedialne, a następnie spróbuj ponownie.",
     "profile_language_rejected": "Tryb automatyczny używa języka profilu głosu ({{language}}), którego ten silnik nie obsługuje. Zmień język profilu, wybierz obsługiwany język lub zmień silnik.",
     "generation_in_progress": "Generowanie już trwa — poczekaj na jego zakończenie przed rozpoczęciem kolejnego.",
     "error_prefix": "Błąd: {{message}}",

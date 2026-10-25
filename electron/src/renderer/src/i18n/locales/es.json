@@ -2944,6 +2944,7 @@
     "channels_mono": "Mono"
   },
   "tts_errors": {
+    "video_retime_fps_unavailable": "Smart Fit no puede determinar la frecuencia de fotogramas del vídeo de origen. Comprueba el archivo de origen y las herramientas multimedia y vuelve a intentarlo.",
     "profile_language_rejected": "Automático usa el idioma del perfil de voz ({{language}}), que este motor no admite. Cambia el idioma del perfil, elige uno compatible o cambia de motor.",
     "generation_in_progress": "Ya hay una generación en curso; espera a que termine antes de iniciar otra.",
     "ignored_duplicate": "Ignorado (categoría ya establecida): {{items}}",

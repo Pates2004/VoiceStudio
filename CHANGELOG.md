@@ -39,6 +39,10 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Stop Smart Fit preview and export before missing frame-rate data can truncate dubbed video (#3045) — thanks @Pates2004!
+
+- Keep pinned Windows ROCm GPU inference usable with Unicode custom MIOpen cache paths (#3045) — thanks @Pates2004!
+
 - Release database snapshot reservations during concurrent Windows ownership checks (#3045) — thanks @Pates2004!
 - Reject malformed Windows ROCm capability reports before certifying GPU readiness (#3045) — thanks @Pates2004!
 - Honor offline alignment caches and retry missing assets without restarting (#3045) — thanks @Pates2004!

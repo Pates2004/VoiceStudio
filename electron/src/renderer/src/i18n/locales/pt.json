@@ -2944,6 +2944,7 @@
     "channels_mono": "Mono"
   },
   "tts_errors": {
+    "video_retime_fps_unavailable": "O Smart Fit não consegue determinar a taxa de quadros do vídeo de origem. Verifique o arquivo de origem e as ferramentas de mídia e tente novamente.",
     "profile_language_rejected": "Automático usa o idioma do perfil de voz ({{language}}), não suportado por este motor. Altere o idioma do perfil, escolha um idioma compatível ou mude de motor.",
     "generation_in_progress": "Já existe uma geração em andamento — aguarde a conclusão antes de iniciar outra.",
     "error_prefix": "Erro: {{message}}",

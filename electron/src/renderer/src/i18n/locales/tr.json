@@ -2942,6 +2942,7 @@
     "channels_stereo": "Stereo"
   },
   "tts_errors": {
+    "video_retime_fps_unavailable": "Smart Fit kaynak videonun kare hızını belirleyemiyor. Kaynak dosyayı ve medya araçlarını kontrol edip yeniden deneyin.",
     "profile_language_rejected": "Otomatik, bu motorun desteklemediği ses profili dilini ({{language}}) kullanır. Profil dilini değiştirin, desteklenen bir dil seçin veya motoru değiştirin.",
     "generation_in_progress": "Bir oluşturma işlemi zaten çalışıyor — yenisini başlatmadan önce bitmesini bekleyin.",
     "error_prefix": "Hata: {{message}}",

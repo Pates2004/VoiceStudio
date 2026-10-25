@@ -2942,6 +2942,7 @@
     "channels_stereo": "Stereo"
   },
   "tts_errors": {
+    "video_retime_fps_unavailable": "Smart Fit kan de beeldsnelheid van de bronvideo niet bepalen. Controleer het bronbestand en de mediatools en probeer het opnieuw.",
     "profile_language_rejected": "Automatisch gebruikt de taal van het stemprofiel ({{language}}), die deze engine niet ondersteunt. Wijzig de profieltaal, kies een ondersteunde taal of wissel van engine.",
     "generation_in_progress": "Er wordt al audio gegenereerd — wacht tot dit klaar is voordat je opnieuw begint.",
     "error_prefix": "Fout: {{message}}",
