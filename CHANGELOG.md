@@ -30,6 +30,8 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Publish sidecar completion markers atomically so interrupted writes remain repairable (#3045) — thanks @Pates2004!
+
 - iPhone: tapping Play right after generating speech starts playback instead of doing nothing (#3233)
 - Android app icons preserve transparent waveform paths from the shared logo, including themed icons (#2969)
 - Speak keeps your script when switching between the phone and computer on Android (#2969)

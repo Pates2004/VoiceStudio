@@ -124,6 +124,10 @@ verification distinguishes an interrupted or incompatible install from a
 working one; repair does not overlay the project's locked CUDA packages onto a
 healthy HIP environment. Failed installs remain retryable and preserve user data.
 
+Sidecar completion markers are published only after their entire contents have
+been written. An interrupted write or failed replacement preserves any previous
+marker and cannot turn a new incomplete installation into a ready engine.
+
 To return to the supported CPU path, fully quit and choose CPU explicitly:
 
 ```powershell

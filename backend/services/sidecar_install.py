@@ -1182,6 +1182,19 @@ def _install_marker_valid(spec: SidecarSpec, checkout: Path) -> bool:
         return False
 
 
+def _write_install_marker(checkout: Path, marker_text: str) -> None:
+    """Publish readiness only after the complete marker has been written."""
+    with tempfile.NamedTemporaryFile(
+        dir=checkout, prefix=f"{_INSTALL_COMPLETE_MARKER}.", delete=False,
+    ) as marker_file:
+        temporary = Path(marker_file.name)
+    try:
+        temporary.write_text(marker_text, encoding="utf-8")
+        temporary.replace(checkout / _INSTALL_COMPLETE_MARKER)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _persist(spec: SidecarSpec) -> None:
     """Point the engine at the managed checkout: process env for immediate
     use, prefs.json ``env.*`` for the next launch, and invalidate the
@@ -1714,7 +1727,7 @@ def _step_verify(spec: SidecarSpec, job: dict) -> None:
     marker_text = f"{spec.probe_module}\n"
     if spec.install_revision:
         marker_text += f"{spec.install_revision}\n"
-    (checkout / _INSTALL_COMPLETE_MARKER).write_text(marker_text, encoding="utf-8")
+    _write_install_marker(checkout, marker_text)
     _log(job, "Venv verified.")
 
 
