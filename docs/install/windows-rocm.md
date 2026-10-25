@@ -128,6 +128,12 @@ Sidecar completion markers are published only after their entire contents have
 been written. An interrupted write or failed replacement preserves any previous
 marker and cannot turn a new incomplete installation into a ready engine.
 
+Either `HF_HUB_OFFLINE` or `TRANSFORMERS_OFFLINE` also prevents optional alignment
+from downloading missing TorchAudio checkpoints, Hugging Face models or Punkt
+data on allowed CPU/CUDA/MPS routes. An unavailable optional aligner preserves
+native word timings; retry after installing assets or leaving offline mode does
+not require restarting. The Windows HIP heavy-pipeline gate remains unchanged.
+
 To return to the supported CPU path, fully quit and choose CPU explicitly:
 
 ```powershell

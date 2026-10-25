@@ -30,6 +30,8 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Honor offline alignment caches and retry missing assets without restarting (#3045) — thanks @Pates2004!
+
 - Publish sidecar completion markers atomically so interrupted writes remain repairable (#3045) — thanks @Pates2004!
 
 - iPhone: tapping Play right after generating speech starts playback instead of doing nothing (#3233)
