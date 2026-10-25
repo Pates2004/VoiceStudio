@@ -30,6 +30,8 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Reject malformed Windows ROCm capability reports before certifying GPU readiness (#3045) — thanks @Pates2004!
+
 - Honor offline alignment caches and retry missing assets without restarting (#3045) — thanks @Pates2004!
 
 - Publish sidecar completion markers atomically so interrupted writes remain repairable (#3045) — thanks @Pates2004!

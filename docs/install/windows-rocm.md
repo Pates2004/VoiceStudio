@@ -124,6 +124,10 @@ verification distinguishes an interrupted or incompatible install from a
 working one; repair does not overlay the project's locked CUDA packages onto a
 healthy HIP environment. Failed installs remain retryable and preserve user data.
 
+Readiness rejects malformed capability types, including boolean device counts,
+not just failed GPU checks. Invalid diagnostics cannot certify acceleration and
+do not authorize a package reinstall.
+
 Sidecar completion markers are published only after their entire contents have
 been written. An interrupted write or failed replacement preserves any previous
 marker and cannot turn a new incomplete installation into a ready engine.
