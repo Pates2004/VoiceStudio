@@ -2900,6 +2900,7 @@
     "pockettts_accepted_toast": "تم قبول شروط PocketTTS."
   },
   "engines": {
+    "voxcpm2LayoutError": "تحتوي بيئة VoxCPM2 على رابط يشير إلى خارج مجلدها المُدار. أصلح الرابط قبل إعادة محاولة التثبيت باستخدام Windows ROCm.",
     "selectCpuFallback": "{{engine}}: يعمل على المعالج المركزي — {{reason}}",
     "selectWithCaveat": "تم التبديل إلى {{engine}} — {{reason}}",
     "acceptLicense": "قبول الترخيص",

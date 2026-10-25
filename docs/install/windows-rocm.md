@@ -105,10 +105,14 @@ inference are reported as different scopes.
 | Unavailable forced alignment | Keeps the transcript and native word timestamps; alignment precision can be lower. It does not discard requested speech or translation content. |
 | Optional engine sidecars | Separate environments and compatibility. Main readiness never certifies them. |
 
-IndexTTS keeps its Python 3.10/3.11 requirement; CosyVoice keeps Torch 2.7;
-VoxCPM2 keeps Torch 2.11. The cp312/Torch 2.9 recipe is **not** applied to these
-environments. Managed Windows sidecars retain their own CPU availability and
-upstream requirements. Known non-HIP IndexTTS metadata keeps CPU fallback on
+IndexTTS keeps its Python 3.10/3.11 requirement; CosyVoice keeps Torch 2.7.
+Default VoxCPM2 installs keep Torch 2.11. A new explicitly opted-in Windows
+ROCm VoxCPM2 install has its own Python 3.12/HIP 7.2.1 recipe and verified
+completion receipt; see [the engine guide](../engines/voxcpm2.md). The main
+runtime probe alone does not certify this sidecar. Existing healthy CPU and
+user-managed environments are preserved. Other managed Windows sidecars
+retain their CPU availability and upstream requirements; the cp312/Torch 2.9
+overlay is not applied to them. Known non-HIP IndexTTS metadata keeps CPU fallback on
 all platforms. Only explicit Windows ROCm opt-in treats unknown sidecar metadata
 conservatively; default unknown-metadata behavior stays the same across platforms.
 Existing manually installed HIP sidecars remain detectable;
@@ -185,6 +189,15 @@ not certified by this workaround. Full WhisperX/VAD/diarization gates remain:
 direct cached wav2vec2 library alignment completed with 18 timed words and an
 observed GPU forward, but does not certify the gated application pipeline.
 Clean Windows, packaged GUI execution and upstream CI remain separate gates.
+
+Explicit main-runtime setup and the managed VoxCPM2 install probe also initialize
+the pinned SDK development archive through AMD's own API. Native initialization
+then discovers the expanded rocRAND headers and sets the process-local
+`ROCM_PATH` before MIOpen imports, preserving an explicit override. Read-only
+verification does not unpack SDK files. Both GPU VAD parameters and actual
+forward inputs were verified on the RX 9070 XT with fresh ASCII and Polish/space
+cache paths after this automatic preparation. The SDK installation root was
+ASCII; full application WhisperX gates are retained pending broader validation.
 
 Setup repairs only confirmed missing, mismatched or damaged packages, including
 native audio, vision and CTranslate2 imports with missing or corrupted wheel files.

@@ -2894,6 +2894,7 @@
     "pockettts_accepted_toast": "Condições do PocketTTS aceites."
   },
   "engines": {
+    "voxcpm2LayoutError": "O ambiente VoxCPM2 contém um link que aponta para fora da pasta gerenciada. Corrija o link antes de tentar novamente a instalação com Windows ROCm.",
     "selectCpuFallback": "{{engine}}: em execução na CPU — {{reason}}",
     "selectWithCaveat": "Alterado para {{engine}} — {{reason}}",
     "acceptLicense": "Aceitar licença",

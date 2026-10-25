@@ -2892,6 +2892,7 @@
     "pockettts_accepted_toast": "PocketTTS 조건에 동의했습니다."
   },
   "engines": {
+    "voxcpm2LayoutError": "VoxCPM2 환경에 관리 폴더 외부를 가리키는 링크가 있습니다. 링크를 수정한 후 Windows ROCm 설치를 다시 시도하세요.",
     "selectCpuFallback": "{{engine}}: CPU에서 실행 중 — {{reason}}",
     "selectWithCaveat": "{{engine}}(으)로 전환했습니다 — {{reason}}",
     "acceptLicense": "라이선스 수락",

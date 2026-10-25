@@ -2892,6 +2892,7 @@
     "pockettts_accepted_toast": "Voorwaarden van PocketTTS geaccepteerd."
   },
   "engines": {
+    "voxcpm2LayoutError": "De VoxCPM2-omgeving bevat een koppeling naar een locatie buiten de beheerde map. Herstel de koppeling voordat je de installatie met Windows ROCm opnieuw probeert.",
     "selectCpuFallback": "{{engine}}: draait op de CPU — {{reason}}",
     "selectWithCaveat": "Overgeschakeld naar {{engine}} — {{reason}}",
     "acceptLicense": "Accepteer licentie",

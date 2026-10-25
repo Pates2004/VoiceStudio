@@ -28,6 +28,8 @@ metadata and the backend fallback mirror it.
 
 ### Added
 
+- Provision new opt-in Windows ROCm VoxCPM2 environments with their own verified HIP recipe (#3045) — thanks @Pates2004!
+
 - Bug reports and Settings → Diagnostics now show the build commit next to the version, so beta and preview builds of one version can be told apart (#3293)
 - The backend and Docker images report their build commit in `/system/info` and in bug reports (#3293)
 - The phone apps have a Report action on every generated result: pick a reason, add an optional note, and it reaches the VoiceStudio team only when you tap Send (#3268, #3276, #3281)
@@ -38,6 +40,8 @@ metadata and the backend fallback mirror it.
 - Smart Fit speed limits: set the fastest and slowest speed dubbing may apply to a line, from the Timing section (#3026) — thanks @MoonDragon-MD!
 
 ### Fixed
+
+- Prepare pinned Windows ROCm SDK headers automatically during explicitly started setup (#3045) — thanks @Pates2004!
 
 - Stop Smart Fit preview and export before missing frame-rate data can truncate dubbed video (#3045) — thanks @Pates2004!
 

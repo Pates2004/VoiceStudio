@@ -2892,6 +2892,7 @@
     "pockettts_accepted_toast": "PocketTTS koşulları kabul edildi."
   },
   "engines": {
+    "voxcpm2LayoutError": "VoxCPM2 ortamı, yönetilen klasörünün dışına yönlendiren bir bağlantı içeriyor. Windows ROCm kurulumunu yeniden denemeden önce bağlantıyı düzeltin.",
     "selectCpuFallback": "{{engine}}: CPU üzerinde çalışıyor — {{reason}}",
     "selectWithCaveat": "{{engine}} motoruna geçildi — {{reason}}",
     "acceptLicense": "Lisansı kabul et",

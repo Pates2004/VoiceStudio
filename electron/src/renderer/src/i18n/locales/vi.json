@@ -2892,6 +2892,7 @@
     "pockettts_accepted_toast": "Đã chấp nhận điều kiện PocketTTS."
   },
   "engines": {
+    "voxcpm2LayoutError": "Môi trường VoxCPM2 có liên kết trỏ ra ngoài thư mục được quản lý. Hãy sửa liên kết trước khi thử cài đặt lại với Windows ROCm.",
     "selectCpuFallback": "{{engine}}: đang chạy trên CPU — {{reason}}",
     "selectWithCaveat": "Đã chuyển sang {{engine}} — {{reason}}",
     "acceptLicense": "Chấp nhận giấy phép",

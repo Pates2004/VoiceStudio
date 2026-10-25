@@ -365,6 +365,7 @@
     "offline_bar": "Engine busy, reconnecting automatically"
   },
   "engines": {
+    "voxcpm2LayoutError": "The VoxCPM2 environment links outside its managed folder. Repair the link before retrying the Windows ROCm installation.",
     "selectCpuFallback": "{{engine}}: running on CPU — {{reason}}",
     "selectWithCaveat": "Switched to {{engine}} — {{reason}}",
     "none_ready_title": "Text-to-speech is not ready",

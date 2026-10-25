@@ -2896,6 +2896,7 @@
     "pockettts_accepted_toast": "Условия PocketTTS приняты."
   },
   "engines": {
+    "voxcpm2LayoutError": "Среда VoxCPM2 содержит ссылку, ведущую за пределы управляемой папки. Исправьте ссылку перед повторной попыткой установки с Windows ROCm.",
     "selectCpuFallback": "{{engine}}: работает на CPU — {{reason}}",
     "selectWithCaveat": "Переключено на {{engine}} — {{reason}}",
     "acceptLicense": "Принять лицензию",

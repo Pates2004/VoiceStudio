@@ -11,6 +11,7 @@ from pathlib import Path
 from .artifacts import checked_wheel, download_archive
 from .failures import VerificationFailure, failure_report
 from .recipe import load_recipe, recipe_identity, validate_target
+from .runtime import initialize_development_sdk
 from .verify import PROJECT_ROOT, verify_environment
 
 
@@ -38,10 +39,13 @@ def provision(uv):
     """Reuse strictly verified installs; repair only confirmed package failures."""
     validate_target()
     try:
-        return verify_environment()
+        report = verify_environment()
     except VerificationFailure as exc:
         if not exc.repairable:
             raise
+    else:
+        initialize_development_sdk()
+        return report
     recipe = load_recipe()
     base = recipe["torch"]["find_links"]
     # Verify CT2 before changing any package, and discard downloads on any failure.
@@ -56,6 +60,7 @@ def provision(uv):
         run_install(install_command(uv, urls, [pin.split("==")[0] for pin in pins]))
         # Dependencies (e.g. PyYAML, numpy) remain resolved by uv; HIP binary stays pinned.
         run_install(install_command(uv, [str(wheel)], ["ctranslate2"]))
+    initialize_development_sdk()
     return verify_environment()
 
 

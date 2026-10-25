@@ -2892,6 +2892,7 @@
     "pockettts_accepted_toast": "ยอมรับเงื่อนไข PocketTTS แล้ว"
   },
   "engines": {
+    "voxcpm2LayoutError": "สภาพแวดล้อม VoxCPM2 มีลิงก์ที่ชี้ไปนอกโฟลเดอร์ที่จัดการอยู่ โปรดแก้ไขลิงก์ก่อนลองติดตั้งด้วย Windows ROCm อีกครั้ง",
     "selectCpuFallback": "{{engine}}: กำลังทำงานบน CPU — {{reason}}",
     "selectWithCaveat": "สลับไปที่ {{engine}} — {{reason}}",
     "acceptLicense": "ยอมรับใบอนุญาต",

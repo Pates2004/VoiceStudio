@@ -2892,6 +2892,7 @@
     "pockettts_accepted_toast": "已接受 PocketTTS 条件。"
   },
   "engines": {
+    "voxcpm2LayoutError": "VoxCPM2 环境中有链接指向其托管文件夹之外。请修复该链接，然后重试 Windows ROCm 安装。",
     "selectCpuFallback": "{{engine}}：正在 CPU 上运行 — {{reason}}",
     "selectWithCaveat": "已切换到 {{engine}} — {{reason}}",
     "acceptLicense": "接受许可",
