@@ -163,8 +163,28 @@ work incorporates focused contributions from
 their whole draft or mix the separate recipe proposed in
 [#2908](https://github.com/debpalash/VoiceStudio/pull/2908).
 
-Fresh supported AMD hardware inference, packaged Windows execution and upstream
-CI remain separate validation gates; a passing mocked test suite is not that evidence.
+On an RX 9070 XT (gfx1201), the production Electron runtime installer completed
+in an isolated Windows test copy with the complete pinned SDK, including
+`rocm-sdk-devel`. Reuse reported both runtime and dependencies ready. Actual
+faster-whisper tiny inference used HIP/float16 and produced 19 timed words from
+the bundled 5.15-second speech sample under each offline flag independently.
+This used an existing Windows host with drivers and prerequisites; it is not
+a clean-Windows or packaged GUI certification.
+
+For the pinned Torch `2.9.1+rocm7.2.1` Windows build, a non-ASCII
+`MIOPEN_CUSTOM_CACHE_DIR` can make MIOpen's SQLite kernel cache fail with
+`miopenStatusInternalError`. Native initialization now disables only that disk
+cache when this custom path contains Unicode and `MIOPEN_DISABLE_CACHE` was not
+explicitly set. ASCII paths, other Torch builds/platforms and explicit overrides
+are unchanged. Actual GPU LSTM inference passed with a fresh Polish/space path
+after automatic initialization. Skipping the disk cache can require recompiling
+kernels in later processes; it does not move model inference to CPU.
+
+Default MIOpen cache locations and Unicode SDK/header installation roots are
+not certified by this workaround. Full WhisperX/VAD/diarization gates remain:
+direct cached wav2vec2 library alignment completed with 18 timed words and an
+observed GPU forward, but does not certify the gated application pipeline.
+Clean Windows, packaged GUI execution and upstream CI remain separate gates.
 
 Setup repairs only confirmed missing, mismatched or damaged packages, including
 native audio, vision and CTranslate2 imports with missing or corrupted wheel files.
