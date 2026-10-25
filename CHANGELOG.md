@@ -30,6 +30,8 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Keep pinned Windows ROCm GPU inference usable with Unicode custom MIOpen cache paths (#3045) — thanks @Pates2004!
+
 - Release database snapshot reservations during concurrent Windows ownership checks (#3045) — thanks @Pates2004!
 
 - Reject malformed Windows ROCm capability reports before certifying GPU readiness (#3045) — thanks @Pates2004!

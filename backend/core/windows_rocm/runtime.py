@@ -33,7 +33,21 @@ def initialize_dll_search():
     if sys.platform != "win32":
         return
     with _DLL_LOCK:
+        _prepare_miopen_cache()
         for directory in dll_directories():
             key = str(directory)
             if key not in _DLL_HANDLES:
                 _DLL_HANDLES[key] = os.add_dll_directory(key)
+
+
+def _prepare_miopen_cache():
+    """Avoid the pinned MIOpen SQLite failure with Unicode custom cache paths."""
+    cache_path = os.environ.get("MIOPEN_CUSTOM_CACHE_DIR", "")
+    if cache_path.isascii() or "MIOPEN_DISABLE_CACHE" in os.environ:
+        return
+    try:
+        if metadata.version("torch") != "2.9.1+rocm7.2.1":
+            return
+    except metadata.PackageNotFoundError:
+        return
+    os.environ.setdefault("MIOPEN_DISABLE_CACHE", "1")
