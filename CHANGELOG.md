@@ -22,6 +22,8 @@ metadata and the backend fallback mirror it.
 
 ### Added
 
+- Provision new opt-in Windows ROCm VoxCPM2 environments with their own verified HIP recipe (#3045) — thanks @Pates2004!
+
 - The phone apps run speech, dictation, voice cloning and dubbing on the phone itself, offline once you download the models; pairing a computer is optional ([guide](docs/mobile.md)) (#2969)
 - Beta update channel: choose Stable or Beta under Settings → Updates; betas are `-beta.N` prereleases that never reach Stable users, and Docker gets matching `:beta` tags ([guide](docs/update-channels.md)) (#3175)
 

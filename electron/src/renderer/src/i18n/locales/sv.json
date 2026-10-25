@@ -2833,6 +2833,7 @@
     "pockettts_accepted_toast": "PocketTTS-villkoren har godkänts."
   },
   "engines": {
+    "voxcpm2LayoutError": "VoxCPM2-miljön innehåller en länk som pekar utanför dess hanterade mapp. Rätta till länken innan du försöker installera med Windows ROCm igen.",
     "selectCpuFallback": "{{engine}}: körs på CPU — {{reason}}",
     "selectWithCaveat": "Bytte till {{engine}} — {{reason}}",
     "acceptLicense": "Acceptera licens",

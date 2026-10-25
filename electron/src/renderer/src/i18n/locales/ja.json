@@ -2833,6 +2833,7 @@
     "pockettts_accepted_toast": "PocketTTS の条件に同意しました。"
   },
   "engines": {
+    "voxcpm2LayoutError": "VoxCPM2 環境には、管理対象フォルダーの外部を参照するリンクがあります。リンクを修正してから、Windows ROCm でのインストールを再試行してください。",
     "selectCpuFallback": "{{engine}}: CPU で実行中 — {{reason}}",
     "selectWithCaveat": "{{engine}} に切り替えました — {{reason}}",
     "acceptLicense": "ライセンスに同意する",

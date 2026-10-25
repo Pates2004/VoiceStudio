@@ -2835,6 +2835,7 @@
     "pockettts_accepted_toast": "Condiciones de PocketTTS aceptadas."
   },
   "engines": {
+    "voxcpm2LayoutError": "El entorno de VoxCPM2 contiene un enlace que apunta fuera de su carpeta administrada. Repara el enlace antes de volver a intentar la instalación con Windows ROCm.",
     "selectCpuFallback": "{{engine}}: ejecutándose en la CPU — {{reason}}",
     "selectWithCaveat": "Se cambió a {{engine}}: {{reason}}",
     "acceptLicense": "Aceptar licencia",

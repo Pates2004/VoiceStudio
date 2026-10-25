@@ -339,6 +339,7 @@
     "hint_synced_folder": "This location is inside a cloud-synced folder (OneDrive, Dropbox, iCloud Drive, Google Drive). Online-only placeholders and file locking break the Python environment. Move VoiceStudio to a plain local folder (for example C:\\VoiceStudio on Windows or ~/VoiceStudio on macOS and Linux) and set it up again."
   },
   "engines": {
+    "voxcpm2LayoutError": "The VoxCPM2 environment links outside its managed folder. Repair the link before retrying the Windows ROCm installation.",
     "selectCpuFallback": "{{engine}}: running on CPU — {{reason}}",
     "selectWithCaveat": "Switched to {{engine}} — {{reason}}",
     "none_ready_title": "Text-to-speech is not ready",

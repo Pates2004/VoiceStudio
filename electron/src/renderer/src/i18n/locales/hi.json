@@ -2833,6 +2833,7 @@
     "pockettts_accepted_toast": "PocketTTS की शर्तें स्वीकार की गईं।"
   },
   "engines": {
+    "voxcpm2LayoutError": "VoxCPM2 परिवेश में एक लिंक उसके प्रबंधित फ़ोल्डर के बाहर की ओर जाता है। Windows ROCm स्थापना दोबारा आज़माने से पहले लिंक ठीक करें।",
     "selectCpuFallback": "{{engine}}: CPU पर चल रहा है — {{reason}}",
     "selectWithCaveat": "{{engine}} पर स्विच किया गया — {{reason}}",
     "acceptLicense": "लाइसेंस स्वीकार करें",

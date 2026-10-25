@@ -2837,6 +2837,7 @@
     "pockettts_accepted_toast": "Warunki PocketTTS zaakceptowane."
   },
   "engines": {
+    "voxcpm2LayoutError": "Środowisko VoxCPM2 zawiera dowiązanie prowadzące poza zarządzany folder. Napraw dowiązanie przed ponowną próbą instalacji z Windows ROCm.",
     "selectCpuFallback": "{{engine}}: działa na CPU — {{reason}}",
     "selectWithCaveat": "Przełączono na {{engine}} — {{reason}}",
     "acceptLicense": "Zaakceptuj licencję",

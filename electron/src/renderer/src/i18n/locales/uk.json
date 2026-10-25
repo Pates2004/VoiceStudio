@@ -2837,6 +2837,7 @@
     "pockettts_accepted_toast": "Умови PocketTTS прийнято."
   },
   "engines": {
+    "voxcpm2LayoutError": "Середовище VoxCPM2 містить посилання, що веде за межі керованої папки. Виправте посилання перед повторною спробою встановлення з Windows ROCm.",
     "selectCpuFallback": "{{engine}}: працює на CPU — {{reason}}",
     "selectWithCaveat": "Перемкнено на {{engine}} — {{reason}}",
     "acceptLicense": "Прийняти ліцензію",

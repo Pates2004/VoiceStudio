@@ -2833,6 +2833,7 @@
     "pockettts_accepted_toast": "已接受 PocketTTS 條件。"
   },
   "engines": {
+    "voxcpm2LayoutError": "VoxCPM2 環境中有連結指向其受管理資料夾之外。請修復該連結，然後重試 Windows ROCm 安裝。",
     "selectCpuFallback": "{{engine}}：正在 CPU 上執行 — {{reason}}",
     "selectWithCaveat": "已切換至 {{engine}} — {{reason}}",
     "acceptLicense": "接受許可",
