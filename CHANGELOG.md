@@ -39,6 +39,11 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Release database snapshot reservations during concurrent Windows ownership checks (#3045) — thanks @Pates2004!
+- Reject malformed Windows ROCm capability reports before certifying GPU readiness (#3045) — thanks @Pates2004!
+- Honor offline alignment caches and retry missing assets without restarting (#3045) — thanks @Pates2004!
+- Publish sidecar completion markers atomically so interrupted writes remain repairable (#3045) — thanks @Pates2004!
+
 - A runtime setup crash during the final import check now names the module that crashed, so reports stop ending at an unrelated log line (#3293)
 - Settings → Updates lists only desktop releases; phone app releases no longer appear there for Beta users (#3292)
 - Android release builds use version codes Google Play accepts for a first upload (#3311)
@@ -177,12 +182,6 @@ metadata and the backend fallback mirror it.
 - Smart Fit speed limits: set the fastest and slowest speed dubbing may apply to a line, from the Timing section (#3026) — thanks @MoonDragon-MD!
 
 ### Fixed
-
-- Reject malformed Windows ROCm capability reports before certifying GPU readiness (#3045) — thanks @Pates2004!
-
-- Honor offline alignment caches and retry missing assets without restarting (#3045) — thanks @Pates2004!
-
-- Publish sidecar completion markers atomically so interrupted writes remain repairable (#3045) — thanks @Pates2004!
 
 - Saved dub loads confirm before replacing unsaved work, recheck edits made during loading and stop when you leave the workspace (#3234)
 - Large VirusTotal uploads upgrade the documented legacy upload URL to HTTPS before sending files or credentials (#3238)
