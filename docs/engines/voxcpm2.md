@@ -94,6 +94,8 @@ the sidecar or change another engine's environment.
 Only this verified managed environment advertises ROCm acceleration. Its
 worker also checks the selected device and actual model parameters; a broken
 receipt or unexpected CPU model fails instead of certifying GPU execution.
+Missing required package metadata also rejects the receipt without crashing
+the engine inventory, so an incomplete managed installation remains repairable.
 Explicit CPU execution remains available. Other platforms and default installs
 retain their existing recipes. Model-free readiness is separate from real
 model synthesis and quality validation.

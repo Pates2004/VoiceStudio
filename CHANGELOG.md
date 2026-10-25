@@ -32,6 +32,8 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Treat missing VoxCPM2 package metadata as an incomplete installation without crashing inventory (#3045) — thanks @Pates2004!
+
 - Prepare pinned Windows ROCm SDK headers automatically during explicitly started setup (#3045) — thanks @Pates2004!
 
 - Keep pinned Windows ROCm GPU inference usable with Unicode custom MIOpen cache paths (#3045) — thanks @Pates2004!

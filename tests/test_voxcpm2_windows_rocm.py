@@ -180,6 +180,22 @@ def test_gpu_marker_requires_current_sidecar_files(installer, monkeypatch, damag
     assert cpu["effective_device"] == "cpu"
 
 
+@pytest.mark.parametrize("missing_sdk", [False, True])
+def test_missing_distribution_metadata_cannot_crash_receipt_validation(installer, monkeypatch, missing_sdk):
+    from core.windows_rocm import voxcpm2
+
+    checkout, result = installed_fixture(installer)
+    if missing_sdk:
+        (checkout / ".venv/Lib/site-packages/rocm_sdk_devel-7.2.1.dist-info/METADATA").unlink()
+    distributions = list(voxcpm2.metadata.distributions(path=[str(checkout / ".venv/Lib/site-packages")]))
+    distributions.append(SimpleNamespace(metadata=None, version=None))
+    monkeypatch.setattr(voxcpm2.metadata, "distributions", lambda **options: iter(distributions))
+
+    verified = voxcpm2.read_verified_install(checkout)
+
+    assert (verified == result) is (not missing_sdk)
+
+
 @pytest.mark.parametrize("platform,family,variant", [
     ("win32", "rocm", ""), ("win32", "cuda", ""), ("win32", "cpu", ""),
     ("linux", "rocm", "rocm"), ("linux", "cuda", ""), ("darwin", "mps", ""),
@@ -425,7 +441,6 @@ def test_parent_forwards_the_selected_device_for_managed_hip(installer, monkeypa
     from core.device_caps import HostCaps
     from engines.voxcpm2_subprocess import VoxCPM2SubprocessBackend
     from services import audio_dsp, tts_backend
-    from services.subprocess_backend import SubprocessBackend
 
     checkout, result = installed_fixture(installer)
     monkeypatch.setenv("OMNIVOICE_VOXCPM2_DIR", str(checkout))
@@ -435,7 +450,7 @@ def test_parent_forwards_the_selected_device_for_managed_hip(installer, monkeypa
     monkeypatch.setattr(audio_dsp, "trim_trailing_silence", lambda waveform, rate: waveform)
     calls = []
     waveform = object()
-    monkeypatch.setattr(SubprocessBackend, "generate", lambda instance, text, **options: calls.append(options) or waveform)
+    monkeypatch.setattr(VoxCPM2SubprocessBackend.__mro__[1], "generate", lambda instance, text, **options: calls.append(options) or waveform)
     backend = VoxCPM2SubprocessBackend()
     assert backend.generate("hello", _voxcpm2_runtime_device="mps") is waveform
     assert calls[0]["_voxcpm2_runtime_device"] == ("cpu" if device == "cpu" else "cuda")

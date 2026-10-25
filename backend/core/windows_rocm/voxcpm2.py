@@ -99,7 +99,7 @@ def read_verified_install(checkout: Path) -> dict | None:
         distributions = list(metadata.distributions(path=[str(packages)]))
         for name, version in expected_versions().items():
             matches = [distribution for distribution in distributions
-                       if str(distribution.metadata.get("Name", "")).lower().replace("_", "-") == name]
+                       if str((distribution.metadata or {}).get("Name", "")).lower().replace("_", "-") == name]
             if len(matches) != 1 or matches[0].version != version:
                 return None
         assignments = {}
