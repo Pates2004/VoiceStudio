@@ -122,7 +122,7 @@ def read_verified_install(checkout: Path) -> dict | None:
         return None
 
 
-def _initialize_dll_search() -> None:
+def _initialize_dll_search(*, initialize_sdk: bool = False) -> None:
     global _SHARED_RUNTIME
     if __package__:
         shared = import_module(".runtime", __package__)
@@ -135,6 +135,8 @@ def _initialize_dll_search() -> None:
             specification.loader.exec_module(shared)
             _SHARED_RUNTIME = shared
         shared = _SHARED_RUNTIME
+    if initialize_sdk:
+        shared.initialize_development_sdk()
     shared.initialize_dll_search()
 
 
@@ -199,6 +201,8 @@ def runtime_device(device: str) -> str:
 def main() -> int:
     try:
         with contextlib.redirect_stdout(sys.stderr):
+            validate_host()
+            _initialize_dll_search(initialize_sdk=True)
             report = verify_gpu()
     except Exception as error:
         category = "package_missing" if isinstance(error, metadata.PackageNotFoundError) else str(error)

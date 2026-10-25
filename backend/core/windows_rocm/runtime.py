@@ -1,7 +1,7 @@
 """Lifetime DLL search handles for actual native imports and isolated probes."""
 import os
 import sys
-from importlib import metadata, util
+from importlib import import_module, metadata, util
 from pathlib import Path
 from threading import RLock
 
@@ -34,6 +34,7 @@ def initialize_dll_search():
         return
     with _DLL_LOCK:
         _prepare_miopen_cache()
+        _prepare_miopen_headers()
         for directory in dll_directories():
             key = str(directory)
             if key not in _DLL_HANDLES:
@@ -51,3 +52,36 @@ def _prepare_miopen_cache():
     except metadata.PackageNotFoundError:
         return
     os.environ.setdefault("MIOPEN_DISABLE_CACHE", "1")
+
+
+def _pinned_development_sdk():
+    if sys.platform != "win32":
+        return False
+    try:
+        return (
+            metadata.version("torch") == "2.9.1+rocm7.2.1"
+            and metadata.version("rocm-sdk-devel") == "7.2.1"
+        )
+    except metadata.PackageNotFoundError:
+        return False
+
+
+def _prepare_miopen_headers():
+    """Point HIPRTC at already expanded headers without changing package files."""
+    if "ROCM_PATH" in os.environ or not _pinned_development_sdk():
+        return
+    specification = util.find_spec("_rocm_sdk_devel")
+    if specification and specification.submodule_search_locations:
+        root = Path(next(iter(specification.submodule_search_locations)))
+        if (root / "include/rocrand/rocrand_xorwow.h").is_file():
+            os.environ.setdefault("ROCM_PATH", str(root))
+
+
+def initialize_development_sdk():
+    """Expand pinned development files only during explicitly started setup."""
+    if not _pinned_development_sdk():
+        return
+    root = Path(import_module("rocm_sdk._devel").get_devel_root())
+    if not (root / "include/rocrand/rocrand_xorwow.h").is_file():
+        raise RuntimeError("Pinned ROCm SDK expansion did not provide required headers")
+    _prepare_miopen_headers()

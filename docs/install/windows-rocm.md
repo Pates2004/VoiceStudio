@@ -190,6 +190,15 @@ direct cached wav2vec2 library alignment completed with 18 timed words and an
 observed GPU forward, but does not certify the gated application pipeline.
 Clean Windows, packaged GUI execution and upstream CI remain separate gates.
 
+Explicit main-runtime setup and the managed VoxCPM2 install probe also initialize
+the pinned SDK development archive through AMD's own API. Native initialization
+then discovers the expanded rocRAND headers and sets the process-local
+`ROCM_PATH` before MIOpen imports, preserving an explicit override. Read-only
+verification does not unpack SDK files. Both GPU VAD parameters and actual
+forward inputs were verified on the RX 9070 XT with fresh ASCII and Polish/space
+cache paths after this automatic preparation. The SDK installation root was
+ASCII; full application WhisperX gates are retained pending broader validation.
+
 Setup repairs only confirmed missing, mismatched or damaged packages, including
 native audio, vision and CTranslate2 imports with missing or corrupted wheel files.
 An import exception alone can indicate a missing external prerequisite (such as
