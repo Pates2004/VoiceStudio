@@ -1,4 +1,4 @@
-import type { RuntimeRunner } from './runtime-project';
+import type { NativeRuntimeDiagnosis, RuntimeRunner } from './runtime-project';
 import { WINDOWS_ROCM_ABI_PROBE } from './runtime-windows-rocm';
 import { WINDOWS_ROCM_IMPORT_TIMEOUT_MS } from './runtime-probe';
 
@@ -13,8 +13,10 @@ export async function inspectRuntimeInterpreter(
   imports: string,
   nativeImports: string,
   repairPackages: readonly string[],
-): Promise<{ existingPython: boolean; repairPackages: string[] }> {
+  diagnoseNative: () => Promise<NativeRuntimeDiagnosis>,
+): Promise<{ existingPython: boolean; repairPackages: string[]; missingSystemLibraries: string[] }> {
   const repairs: string[] = [];
+  let missingSystemLibraries: string[] = [];
   try {
     await run(
       python,
@@ -39,7 +41,7 @@ export async function inspectRuntimeInterpreter(
         signal.throwIfAborted();
         repairs.push('sentencepiece');
       }
-      return { existingPython: true, repairPackages: repairs };
+      return { existingPython: true, repairPackages: repairs, missingSystemLibraries };
     }
     try {
       await run(python, ['-c', imports], project);
@@ -47,7 +49,9 @@ export async function inspectRuntimeInterpreter(
       try {
         await run(python, ['-c', nativeImports], project);
       } catch {
-        repairs.push(...repairPackages);
+        const diagnosis = await diagnoseNative();
+        missingSystemLibraries = diagnosis.missingSystemLibraries;
+        if (!missingSystemLibraries.length) repairs.push(...repairPackages);
       }
       signal.throwIfAborted();
       try {
@@ -56,9 +60,9 @@ export async function inspectRuntimeInterpreter(
         repairs.push('sentencepiece');
       }
     }
-    return { existingPython: true, repairPackages: repairs };
+    return { existingPython: true, repairPackages: repairs, missingSystemLibraries };
   } catch {
     signal.throwIfAborted();
-    return { existingPython: false, repairPackages: repairs };
+    return { existingPython: false, repairPackages: repairs, missingSystemLibraries };
   }
 }

@@ -10,10 +10,14 @@ import {
   installRuntime,
   promoteLegacyRuntimeCaches,
   CUDNN8_COMPAT_PIN,
+  MISSING_SYSTEM_LIBRARY_CODE,
+  NATIVE_DIAGNOSTIC_PREFIX,
   ROCM_TORCH_INDEX,
   ROCM_TORCH_PINS,
   rocmTorchOptIn,
   RUNTIME_IMPORT_PROBE,
+  RUNTIME_NATIVE_DIAGNOSTIC_PROBE,
+  lastImportAttempted,
   RUNTIME_NATIVE_IMPORT_PROBE,
   RUNTIME_REPAIR_PACKAGES,
   clearCtranslate2ExecutableStack,
@@ -111,6 +115,32 @@ describe('packaged runtime setup', () => {
       expect(await runtimeReady(bundle, project)).toBe(true);
     },
   );
+  it('names the module whose native import crashed the final verification (#3293)', async () => {
+    forcePlatform('win32');
+    vi.spyOn(process, 'arch', 'get').mockReturnValue('x64');
+    vi.stubEnv('OMNIVOICE_TORCH_VARIANT', 'cpu');
+    const { bundle, project } = await fixture();
+    const sitePackages = join(project, '.venv', 'Lib', 'site-packages');
+    const run = vi.fn(async (_command: string, args: string[]) => {
+      if (args[0] === 'sync') await interpreter(project);
+      if (args[1]?.includes('VOICESTUDIO_CUDNN8_PROBE=')) {
+        return `VOICESTUDIO_CUDNN8_PROBE=${JSON.stringify({ device: 'none', sitePackages })}\n`;
+      }
+      if (args[1] === RUNTIME_IMPORT_PROBE) {
+        throw Object.assign(new Error('Runtime setup exited with code 3221225477'), {
+          code: 3221225477,
+          stdout: 'VOICESTUDIO_IMPORT=fastapi\nVOICESTUDIO_IMPORT=faster_whisper\n',
+        });
+      }
+      return undefined;
+    });
+    await expect(
+      installRuntime(bundle, project, 'uv', run, new AbortController().signal, undefined, 'global'),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining('while importing "faster_whisper"'),
+      code: 3221225477,
+    });
+  });
   it.each([
     ['after printing its result', true],
     ['before printing anything', false],
@@ -461,6 +491,54 @@ describe('packaged runtime setup', () => {
       ...RUNTIME_REPAIR_PACKAGES,
     ]);
   });
+  it('reports a missing system library instead of reinstalling wheels that cannot supply it', async () => {
+    const { bundle, project } = await fixture();
+    await interpreter(project);
+    const run = vi.fn(async (_command: string, args: string[]) => {
+      if (args[0] !== '-c') return undefined;
+      if (args[1] === RUNTIME_IMPORT_PROBE || args[1] === RUNTIME_NATIVE_IMPORT_PROBE) {
+        throw new Error("Could not find module 'libtorchaudio.pyd' (or one of its dependencies).");
+      }
+      if (args[1] === RUNTIME_NATIVE_DIAGNOSTIC_PROBE) {
+        return `${NATIVE_DIAGNOSTIC_PREFIX}${JSON.stringify({
+          missing_system_libraries: ['vcomp140.dll'],
+          extension_present: true,
+        })}\n`;
+      }
+      return undefined;
+    });
+
+    await expect(
+      installRuntime(bundle, project, 'uv', run, new AbortController().signal),
+    ).rejects.toMatchObject({
+      code: MISSING_SYSTEM_LIBRARY_CODE,
+      missingSystemLibraries: ['vcomp140.dll'],
+    });
+    // No wheel can supply a system library, so nothing is downloaded for it.
+    expect(run.mock.calls.some(([, args]) => args[0] === 'sync')).toBe(false);
+    expect(run.mock.calls.some(([, args]) => args[0] === 'cache')).toBe(false);
+    expect(await runtimeReady(bundle, project)).toBe(false);
+  });
+  it('reports a missing system library when a fresh install fails verification', async () => {
+    const { bundle, project } = await fixture();
+    const run = vi.fn(async (_command: string, args: string[]) => {
+      if (args[0] !== '-c') return undefined;
+      if (args[1] === RUNTIME_IMPORT_PROBE) {
+        throw new Error("Could not find module 'libtorchaudio.pyd' (or one of its dependencies).");
+      }
+      if (args[1] === RUNTIME_NATIVE_DIAGNOSTIC_PROBE) {
+        return `${NATIVE_DIAGNOSTIC_PREFIX}${JSON.stringify({
+          missing_system_libraries: ['msvcp140.dll'],
+          extension_present: true,
+        })}\n`;
+      }
+      return undefined;
+    });
+
+    await expect(
+      installRuntime(bundle, project, 'uv', run, new AbortController().signal),
+    ).rejects.toMatchObject({ code: MISSING_SYSTEM_LIBRARY_CODE });
+  });
   it('repairs sentencepiece without evicting healthy PyTorch wheels', async () => {
     const { bundle, project } = await fixture();
     await interpreter(project);
@@ -786,4 +864,35 @@ it('hands explicit download proxies and loopback bypasses to uv', async () => {
   expect(env?.HTTPS_PROXY).toBe('socks5h://127.0.0.1:10808');
   expect(env?.NO_PROXY).toContain('localhost,127.0.0.1,::1');
   expect(env?.PYTHONPATH).toBeUndefined();
+});
+
+describe('import verification names the module that crashed (#3293)', () => {
+  it('announces each runtime module before importing it', () => {
+    expect(RUNTIME_IMPORT_PROBE.split('\n')).toEqual([
+      "print('VOICESTUDIO_IMPORT=fastapi', flush=True)",
+      'import fastapi',
+      "print('VOICESTUDIO_IMPORT=uvicorn', flush=True)",
+      'import uvicorn',
+      "print('VOICESTUDIO_IMPORT=omnivoice', flush=True)",
+      'import omnivoice',
+      "print('VOICESTUDIO_IMPORT=faster_whisper', flush=True)",
+      'import faster_whisper',
+      "print('VOICESTUDIO_IMPORT=sentencepiece', flush=True)",
+      'import sentencepiece',
+      "print('VOICESTUDIO_IMPORT=torch', flush=True)",
+      'import torch',
+      "print('VOICESTUDIO_IMPORT=torchaudio', flush=True)",
+      'import torchaudio',
+      "print('VOICESTUDIO_IMPORT=torchvision', flush=True)",
+      'import torchvision',
+    ]);
+  });
+
+  it('reads the last announced module from partial output', () => {
+    expect(lastImportAttempted('VOICESTUDIO_IMPORT=fastapi\nVOICESTUDIO_IMPORT=torch\n')).toBe(
+      'torch',
+    );
+    expect(lastImportAttempted('no markers here')).toBeNull();
+    expect(lastImportAttempted(undefined)).toBeNull();
+  });
 });

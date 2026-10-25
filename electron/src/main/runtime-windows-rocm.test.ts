@@ -26,9 +26,11 @@ it.each(['fresh', 'healthy', 'broken'] as const)(
     if (state !== 'fresh') await interpreter(project);
     const run = runner(project);
     if (state === 'broken') {
+      let provisioned = false;
       run.mockImplementation(async (_command, args) => {
+        if (args.includes('--uv')) provisioned = true;
         if (args[0] === 'sync') await interpreter(project);
-        if (args[0] === '-c' && args[1]?.includes('import torch'))
+        if (!provisioned && args[0] === '-c' && args[1]?.includes('import torch'))
           throw Error('broken native wheel');
         return report;
       });

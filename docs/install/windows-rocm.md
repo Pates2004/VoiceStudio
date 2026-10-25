@@ -174,3 +174,19 @@ timeouts, crashes and unclassified failures stop verification without downloadin
 or reinstalling the overlay. CLI diagnostics include a bounded failure category;
 correct the reported host problem before retrying. A successful package repair
 must still pass the complete model-free GPU verification.
+
+## Maintainer integration checks
+
+When reconciling this path with newer runtime code, retain both the Windows HIP
+checks and the default runtime's native-failure diagnostics. Initialize DLL search
+and import Torch before dependent HIP application modules. Keep the Python 3.12
+ABI check, bounded fail-closed HIP import probe and complete `--verify-only`
+validation before publishing runtime readiness. A missing system DLL must remain
+a prerequisite failure rather than trigger another multi-gigabyte wheel install.
+
+Backend startup prepares audio compatibility inside the guarded audio import
+phase. Preparation or TorchAudio import failures retain degraded startup and
+sanitized logging; they do not certify HIP readiness or enable gated pipelines.
+The runtime integration, broken-audio startup, Windows ROCm heavy-gate and
+offline-alignment regressions cover these separate boundaries. Run the actual
+current-main backend/frontend CI as well as these focused tests before landing.

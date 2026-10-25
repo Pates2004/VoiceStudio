@@ -34,7 +34,7 @@ import { cloneSettingsStore } from '@/lib/store/clone-settings';
 import { setLatestOutput } from '@/lib/store/output';
 import { referenceStore } from '@/lib/store/reference';
 import { beginAppActivity } from '@/lib/app-activity';
-import { useTtsReadiness } from './use-tts-readiness';
+import { isPresetOnly, useTtsReadiness } from './use-tts-readiness';
 import { useEngines } from './use-engines';
 import { recordActionBreadcrumb } from '@/lib/report-breadcrumb';
 import { announceDroppedSpeech } from '@/lib/dropped-speech';
@@ -93,6 +93,8 @@ export interface UseGenerateClone {
   /** 0..100 reported while model weights or runtime are loading. */
   modelProgress: number | null;
   error: string | null;
+  /** Stable backend failure topic of `error` (e.g. `REFERENCE_STT_MISSING`), when it sent one. */
+  errorTopic: string | null;
   clearError(): void;
   canGenerate: boolean;
   canGenerateDesign: boolean;
@@ -106,6 +108,16 @@ export interface UseGenerateClone {
   cloneBlocker: CloneBlocker;
   /** How the active engine reads `instruct`: OmniVoice tags or as written (#2389). */
   instructVocabulary: InstructVocabulary;
+}
+
+function failureTopic(err: unknown): string | null {
+  if (!(err instanceof ApiError) || !err.payload) return null;
+  const detail = err.payload.detail;
+  const topic =
+    typeof detail === 'object' && detail !== null
+      ? (detail as { docs_topic?: unknown }).docs_topic
+      : undefined;
+  return typeof topic === 'string' && topic ? topic : null;
 }
 
 function isModelNotDownloaded(err: unknown): boolean {
@@ -160,6 +172,7 @@ function useGenerateController(): UseGenerateClone {
   const designBlocker: DesignBlocker =
     activeTts?.supports_voice_design === false ? 'design' : ttsBlocker;
   const cannotClone = activeTts?.supports_cloning === false;
+  const presetOnly = isPresetOnly(activeTts);
   const designBlockerFor = useCallback(
     (profile: Profile | null | undefined): DesignBlocker => {
       if (!clonesSavedSample(profile)) return designBlocker;
@@ -169,6 +182,7 @@ function useGenerateController(): UseGenerateClone {
     [cannotClone, designBlocker, ttsBlocker],
   );
   const [error, setError] = useState<string | null>(null);
+  const [errorTopic, setErrorTopic] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [progress, setProgress] = useState<number | null>(null);
@@ -298,6 +312,7 @@ function useGenerateController(): UseGenerateClone {
       activeRef.current = true;
       cancelledRef.current = false;
       setError(null);
+      setErrorTopic(null);
       setIsGenerating(true);
       setElapsedSeconds(0);
       setProgress(null);
@@ -323,9 +338,15 @@ function useGenerateController(): UseGenerateClone {
           text: design?.text ?? settings.text,
           seed: design?.seed,
           language: design?.language ?? settings.language,
-          profileId: design ? (design.profileId ?? null) : settings.selectedProfileId,
-          refAudio: design || settings.selectedProfileId ? null : reference.file,
-          refText: design ? undefined : settings.refText,
+          // A preset-only engine renders its preset voice; sending the saved
+          // voice or clip would be refused (it cannot clone).
+          profileId: design
+            ? (design.profileId ?? null)
+            : presetOnly
+              ? null
+              : settings.selectedProfileId,
+          refAudio: design || settings.selectedProfileId || presetOnly ? null : reference.file,
+          refText: design || presetOnly ? undefined : settings.refText,
           instruct,
           instructVocabulary,
           designRecipe: design?.recipe,
@@ -365,6 +386,7 @@ function useGenerateController(): UseGenerateClone {
       } catch (err) {
         if (!cancelledRef.current) {
           recordActionBreadcrumb(`generate:${reportMode}:error`);
+          setErrorTopic(failureTopic(err));
           setError(
             isAbortError(err)
               ? tr('tts_errors.timeout')
@@ -392,7 +414,7 @@ function useGenerateController(): UseGenerateClone {
           .catch(() => {});
       }
     },
-    [queryClient, onProgress, blocker, designBlockerFor, instructVocabulary, activeTts],
+    [queryClient, onProgress, blocker, designBlockerFor, instructVocabulary, activeTts, presetOnly],
   );
 
   const cancel = useCallback(() => {
@@ -414,7 +436,11 @@ function useGenerateController(): UseGenerateClone {
     modelStage,
     modelProgress,
     error,
-    clearError: () => setError(null),
+    errorTopic,
+    clearError: () => {
+      setError(null);
+      setErrorTopic(null);
+    },
     canGenerate: blocker === null && !isGenerating,
     canGenerateDesign: designBlocker === null && !isGenerating,
     designBlocker,

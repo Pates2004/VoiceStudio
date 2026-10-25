@@ -59,6 +59,7 @@ vi.mock('node:fs', async (importOriginal) => {
 });
 vi.mock('node:fs/promises', () => ({ rm: mocks.rm }));
 vi.mock('./runtime-project', () => ({
+  MISSING_SYSTEM_LIBRARY_CODE: 'MISSING_SYSTEM_LIBRARY',
   runtimeDependenciesReady: mocks.dependencies,
   runtimeReady: mocks.ready,
   runtimeCompatible: mocks.compatible,
@@ -75,6 +76,7 @@ import {
   isExpectedPipeClose,
   isUnsupportedPlatform,
   managedBackendSpawnOptions,
+  bundledUvEnv,
   platformSetupIssue,
 } from './backend';
 import { app } from 'electron';
@@ -699,6 +701,14 @@ it('never overrides a uv the user pinned themselves', () => {
   expect(env.OMNIVOICE_BUNDLED_UV).toBe('/pinned/uv');
 });
 
+it('drops a blank uv pin when this host has no uv to offer', () => {
+  // Failed on CI runners without uv: the blank pin went to the backend as-is.
+  expect(bundledUvEnv('', () => null)).toBeUndefined();
+  expect(bundledUvEnv('  ', () => '/found/uv')).toBe('/found/uv');
+  expect(bundledUvEnv('/pinned/uv', () => '/found/uv')).toBe('/pinned/uv');
+  expect(bundledUvEnv(undefined, () => null)).toBeUndefined();
+});
+
 it('only ever names a uv that is really there', () => {
   // The backend gates on `if bundled and Path(bundled).is_file()`, so a blank
   // or stale value reads as "the shell tried and failed" rather than "the
@@ -849,4 +859,18 @@ it('tells Apple Silicon users running the Intel build to install the arm64 build
     delete electronApp.runningUnderARM64Translation;
     restore();
   }
+});
+
+it('lets a failed start move the runtime to another folder', async () => {
+  vi.stubEnv('OMNIVOICE_BACKEND_CMD', '');
+  vi.stubEnv('VOICESTUDIO_SKIP_BACKEND', '');
+  const supervisor = new BackendSupervisor();
+  await supervisor.start();
+  for (const stage of ['failed', 'crashed', 'port_in_use'] as const) {
+    (supervisor as unknown as { stage: string }).stage = stage;
+    expect(() => supervisor.setRuntimeLocation(null)).not.toThrow();
+  }
+  (supervisor as unknown as { stage: string }).stage = 'ready';
+  expect(() => supervisor.setRuntimeLocation(null)).toThrow('runtime_location_unavailable');
+  await supervisor.shutdown();
 });
