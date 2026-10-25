@@ -36,6 +36,7 @@ import json
 import zlib
 
 import pytest
+import soundfile as sf
 import torch
 
 SR = 24000
@@ -102,9 +103,13 @@ def _assert_unmarked(wav: torch.Tensor, sr: int, where: str):
     assert res["is_watermarked"] is False, f"{where}: false positive: {res}"
 
 
+def _read_wav(source) -> tuple[torch.Tensor, int]:
+    samples, sample_rate = sf.read(source, dtype="float32", always_2d=True)
+    return torch.from_numpy(samples.T), sample_rate
+
+
 def _wav_from_bytes(data: bytes):
-    import torchaudio
-    return torchaudio.load(io.BytesIO(data))
+    return _read_wav(io.BytesIO(data))
 
 
 def _pcm16_to_tensor(data: bytes) -> torch.Tensor:
@@ -180,6 +185,21 @@ def client():
 
 def test_unmarked_engine_output_is_not_detected(marking_on):
     _assert_unmarked(_speechy(), SR, "raw engine output")
+
+
+@pytest.mark.parametrize("channels", [1, 2])
+@pytest.mark.parametrize("sample_rate", [12000, SR])
+def test_wav_response_reader_preserves_channels_and_rate(channels, sample_rate):
+    expected = torch.linspace(-0.75, 0.75, 48 * channels, dtype=torch.float32).reshape(channels, 48)
+    buffer = io.BytesIO()
+    sf.write(buffer, expected.T.numpy(), sample_rate, format="WAV", subtype="PCM_16")
+
+    actual, actual_rate = _wav_from_bytes(buffer.getvalue())
+
+    assert actual_rate == sample_rate
+    assert actual.shape == expected.shape
+    assert actual.dtype == torch.float32
+    torch.testing.assert_close(actual, expected, atol=1 / 32768, rtol=0)
 
 
 # ── POST /v1/audio/speech (the reported gap) ─────────────────────────────────
@@ -308,13 +328,12 @@ def _fake_synth(text, voice_id, speed=None):
 def test_longform_chapter_wav_is_watermarked(tmp_path, marking_on):
     from api.routers.audiobook import _render_chapter_cached
     from services.audiobook import Chapter, Span
-    import torchaudio
 
     ch = Chapter(title="C1", spans=[Span(voice_id=None, text="Hello there.", pause_ms_after=0)])
     wav_path, dur, cached, _stats = _render_chapter_cached(
         ch, _fake_synth, SR, "eng", _resolve, str(tmp_path))
     assert cached is False and dur > 0
-    wav, sr = torchaudio.load(wav_path)
+    wav, sr = _read_wav(wav_path)
     _assert_marked(wav, sr, "longform chapter cache WAV (feeds m4b/mp3 mux + preview)")
 
 
@@ -326,7 +345,6 @@ def test_longform_stale_unmarked_cache_is_not_served(tmp_path, marking_on):
     from services.audiobook import Chapter, Span
     from services.audio_io import atomic_save_wav
     from services.longform_render import chapter_cache_key
-    import torchaudio
 
     # Seed the OLD (no watermark tag) key with unmarked audio.
     old_key = chapter_cache_key([(None, "Hello there.", 0, None)], sample_rate=SR,
@@ -337,14 +355,13 @@ def test_longform_stale_unmarked_cache_is_not_served(tmp_path, marking_on):
     wav_path, _dur, cached, _stats = _render_chapter_cached(
         ch, _fake_synth, SR, "eng", _resolve, str(tmp_path))
     assert cached is False, "stale unmarked cache entry was served for a marked-on render"
-    wav, sr = torchaudio.load(wav_path)
+    wav, sr = _read_wav(wav_path)
     _assert_marked(wav, sr, "re-rendered chapter after stale-cache miss")
 
 
 def test_audiobook_preview_route_output_is_watermarked(tmp_path, monkeypatch, marking_on):
     import core.config as cfg
     import api.routers.audiobook as ab
-    import torchaudio
 
     outdir = tmp_path / "outputs"
     outdir.mkdir()
@@ -356,7 +373,7 @@ def test_audiobook_preview_route_output_is_watermarked(tmp_path, monkeypatch, ma
     monkeypatch.setattr(ab, "_prepare_synth", _fake_prepare)
     res = asyncio.run(ab.audiobook_preview(ab.AudiobookPreviewRequest(
         text="# One\nHello there.", chapter_index=0)))
-    wav, sr = torchaudio.load(os.path.join(str(outdir), res["output"]))
+    wav, sr = _read_wav(os.path.join(str(outdir), res["output"]))
     _assert_marked(wav, sr, "POST /audiobook/preview")
 
 
@@ -365,7 +382,6 @@ def test_audiobook_preview_route_output_is_watermarked(tmp_path, monkeypatch, ma
 
 def test_batch_dub_track_is_watermarked(tmp_path, monkeypatch, fake_engine, marking_on):
     import api.routers.batch as b
-    import torchaudio
 
     monkeypatch.setattr(b, "DATA_DIR", str(tmp_path))
     monkeypatch.setenv("OMNIVOICE_TTS_BACKEND", "fake-wm-1169")
@@ -398,7 +414,7 @@ def test_batch_dub_track_is_watermarked(tmp_path, monkeypatch, fake_engine, mark
     asyncio.run(b._run_batch_pipeline("jobWM", job))
     assert "en" in job.get("outputs", {})
 
-    wav, sr = torchaudio.load(str(tmp_path / "batch" / "jobWM" / "dubbed_en.wav"))
+    wav, sr = _read_wav(tmp_path / "batch" / "jobWM" / "dubbed_en.wav")
     _assert_marked(wav, sr, "batch dubbed track (muxed into the output mp4)")
 
 
@@ -427,7 +443,6 @@ def test_dub_preview_segment_response_is_watermarked(monkeypatch, marking_on):
 def test_archetype_render_is_watermarked(tmp_path, monkeypatch, marking_on):
     import api.routers.archetypes as arch
     import api.routers.generation as gen_mod
-    import torchaudio
 
     class _Model:
         sampling_rate = SR
@@ -442,5 +457,5 @@ def test_archetype_render_is_watermarked(tmp_path, monkeypatch, marking_on):
     a = {"id": "t", "name": "T", "language": "en",
          "sample_script": "Hello there.", "instruct": "warm narrator"}
     asyncio.run(arch._render_archetype_wav(a, out))
-    wav, sr = torchaudio.load(str(out))
+    wav, sr = _read_wav(out)
     _assert_marked(wav, sr, "archetype render (served preview + profile reference WAV)")
