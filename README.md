@@ -73,6 +73,8 @@ Start with **VoiceStudio** (default, powered by k2-fsa/OmniVoice), or pick from 
 
 Desktop and phone installers are on the [latest release](https://github.com/debpalash/VoiceStudio/releases/latest); Docker images come from GHCR. No GPU? The app is fully usable on the CPU, just slower. Native GGUF engines can also use Vulkan on AMD, Intel and NVIDIA GPUs; OmniVoice GGUF picks its GPU and model size automatically on Windows and Linux ([OmniVoice](docs/engines/omnivoice-gguf.md#vulkan-acceleration), [CosyVoice](docs/engines/cosyvoice-gguf.md)). Speed by engine and hardware: [performance](docs/performance.md).
 
+Choose desktop runtime packages during setup or under **Settings → Performance → Runtime packages**. Native Windows ROCm requires Windows 11 x64 and a GPU in AMD's supported matrix; optional engines have separate qualification limits ([requirements](docs/install/windows-rocm.md)).
+
 ## Get started
 
 **macOS / Linux**
