@@ -312,6 +312,7 @@ async function prepareExistingDestination(
   plan: DataRelocationPlan,
   sourceManifest: ManifestEntry[],
   requestedTarget: string,
+  environmentTarget: string,
 ): Promise<PreparedDataRelocation> {
   const { validateTarget, selectedStillPresent } = await bindTargetDirectory(
     plan.target,
@@ -553,8 +554,8 @@ async function prepareExistingDestination(
     // core.config preserves the env spelling, and Python os.path.join does not
     // normalize it. In particular C:/data becomes C:/data\voices on Windows.
     const trailingSeparator =
-      requestedTarget.endsWith(sep) || (sep === '\\' && requestedTarget.endsWith('/'));
-    const current = requestedTarget + (trailingSeparator ? '' : sep) + 'voices';
+      environmentTarget.endsWith(sep) || (sep === '\\' && environmentTarget.endsWith('/'));
+    const current = environmentTarget + (trailingSeparator ? '' : sep) + 'voices';
     // Match services.longform_render.remember_voices_root's filtering/order/cap.
     const expected = JSON.stringify(
       [current, ...seen.filter((root) => root !== current)].slice(0, 8),
@@ -599,8 +600,11 @@ async function prepareExistingDestination(
 export async function prepareDataRelocation(
   source: string,
   target: string,
+  requestedTarget = target,
 ): Promise<PreparedDataRelocation> {
   const plan = await inspectDataRelocation(source, target);
+  if (normalized(await canonicalDestination(requestedTarget)) !== normalized(plan.target))
+    throw new TargetChangedError();
   const sourceManifest = await manifest(plan.source);
   const existing = await lstat(plan.target).then(
     () => true,
@@ -609,7 +613,7 @@ export async function prepareDataRelocation(
       return false;
     },
   );
-  if (existing) return prepareExistingDestination(plan, sourceManifest, target);
+  if (existing) return prepareExistingDestination(plan, sourceManifest, requestedTarget, target);
   const parent = dirname(plan.target);
   const staging = join(parent, `.${basename(plan.target)}.voicestudio-moving-${randomUUID()}`);
   await mkdir(staging, { recursive: false });
@@ -668,7 +672,7 @@ export async function prepareDataRelocation(
   }
   let binding: Awaited<ReturnType<typeof bindTargetDirectory>>;
   try {
-    binding = await bindTargetDirectory(plan.target, target, stagedIdentity);
+    binding = await bindTargetDirectory(plan.target, requestedTarget, stagedIdentity);
     await binding.validateTarget();
   } catch (error) {
     throw new RollbackIncompleteError(error);
@@ -800,6 +804,7 @@ export async function relocateDataDirectory(
   source: string,
   target: string,
   runtime: DataRelocationRuntime,
+  requestedTarget = target,
 ): Promise<DataRelocationResult> {
   let prepared: PreparedDataRelocation | null = null;
   let previousSetting: string | null = null;
@@ -811,7 +816,7 @@ export async function relocateDataDirectory(
     await runtime.stop();
     stopped = true;
     runtime.progress('copying');
-    prepared = await prepareDataRelocation(source, target);
+    prepared = await prepareDataRelocation(source, target, requestedTarget);
     previousSetting = await readDataDirectorySetting(runtime.environmentPath);
     runtime.progress('switching');
     await writeDataDirectorySetting(target, runtime.environmentPath);

@@ -335,6 +335,7 @@ export function registerIpc(
     authorization: string;
     source: string;
     target: string;
+    requestedTarget: string;
     createdAt: number;
   } | null = null;
   supervisor.subscribe((status: BackendStatus) => broadcast(CHANNELS.backendStatus, status));
@@ -433,6 +434,7 @@ export function registerIpc(
       authorization: randomUUID(),
       source: plan.source,
       target: plan.target,
+      requestedTarget: picked.filePaths[0],
       createdAt: Date.now(),
     };
     return { ...plan, authorization: relocationSelection.authorization };
@@ -462,12 +464,17 @@ export function registerIpc(
       sendToLiveWindow(owner, CHANNELS.maintenanceRelocationProgress, { stage });
     maintenanceBusy = true;
     try {
-      return await relocateDataDirectory(selected.source, selected.target, {
-        stop: () => supervisor.shutdown(),
-        start: () => supervisor.start(),
-        verify: (target) => waitForBackendDataDirectory(supervisor, target),
-        progress,
-      });
+      return await relocateDataDirectory(
+        selected.source,
+        selected.target,
+        {
+          stop: () => supervisor.shutdown(),
+          start: () => supervisor.start(),
+          verify: (target) => waitForBackendDataDirectory(supervisor, target),
+          progress,
+        },
+        selected.requestedTarget,
+      );
     } finally {
       maintenanceBusy = false;
     }
