@@ -592,6 +592,7 @@ it.each(
 );
 
 it('passes the same ROCm choice to dependency verification and the owned backend', async () => {
+  vi.stubEnv('HF_ENDPOINT', undefined);
   seedPreferences({ region: 'china', torchPreference: 'rocm' });
   fixture.ready.mockResolvedValue(true);
   const instance = supervisor();
@@ -601,8 +602,8 @@ it('passes the same ROCm choice to dependency verification and the owned backend
   expect(fixture.dependencies).toHaveBeenCalledWith(expect.any(String), undefined, choice, true);
   expect(fixture.spawn.mock.calls[0][2].env).toMatchObject({
     OMNIVOICE_TORCH_VARIANT: 'rocm',
-    HF_ENDPOINT: 'https://hf-mirror.com',
   });
+  expect(fixture.spawn.mock.calls[0][2].env.HF_ENDPOINT).toBeUndefined();
 });
 
 it.each([
