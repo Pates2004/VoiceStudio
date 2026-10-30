@@ -359,6 +359,11 @@ TorchCodec DLLs. LLM, flow and HiFT parameters are checked against the selected
 device; ONNX helpers remain on CPU. Source/custom installs and CPU/CUDA/other
 platform recipes are unchanged. Device changes allow the normal three-second
 graceful shutdown before bounded forced cleanup; a live owner blocks replacement.
+Private environment checks read each distribution's name once per check, while
+still rejecting duplicate package names and mismatched versions. They do not
+cache admission across calls. A changed CosyVoice qualification fingerprint
+requires running Install again to produce a fresh native verification; existing
+model weights are reused.
 Real speech and packaged hardware acceptance
 remain separate from this model-free setup check. See the
 [CosyVoice guide](../engines/cosyvoice.md#managed-native-windows-amd-variant).

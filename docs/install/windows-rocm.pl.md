@@ -74,6 +74,10 @@ urządzenia; pomocnicze ONNX pozostają na CPU. Jawny wybór CPU jest respektowa
 Zmiana urządzenia daje procesowi standardowe trzy sekundy na zwykłe zamknięcie
 przed ograniczonym czasowo wymuszonym sprzątaniem; nadal żywy proces blokuje
 uruchomienie jego następcy.
+Kontrola osobnego środowiska odczytuje nazwę każdego pakietu raz, nadal odrzucając
+duplikaty i niezgodne wersje. Nie zapamiętuje dopuszczenia między wywołaniami.
+Zmiana odcisku kwalifikacji CosyVoice wymaga ponownego uruchomienia Install
+i rzeczywistej kontroli natywnej; istniejące wagi modelu są wykorzystywane ponownie.
 Kontrola bez wag nie zastępuje syntezy ani kwalifikacji nowego pakietu na sprzęcie.
 
 Zdrowa istniejąca instalacja CosyVoice CP310/Torch2.7 na CPU pozostaje dostępna

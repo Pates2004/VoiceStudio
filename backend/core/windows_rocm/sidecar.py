@@ -53,11 +53,13 @@ def environment_matches(checkout: Path, packages: dict[str, str], hip: str) -> b
     if re.fullmatch(r"3[.]12(?:[.][0-9]+)?", python_version) is None:
         return False
     installed = checkout / ".venv/Lib/site-packages"
-    distributions = list(metadata.distributions(path=[str(installed)]))
+    by_name = {}
+    for distribution in metadata.distributions(path=[str(installed)]):
+        normalized = str((distribution.metadata or {}).get("Name", "")).lower().replace("_", "-")
+        by_name.setdefault(normalized, []).append(distribution)
     for name, version in packages.items():
         normalized = name.lower().replace("_", "-")
-        matches = [distribution for distribution in distributions
-                   if str((distribution.metadata or {}).get("Name", "")).lower().replace("_", "-") == normalized]
+        matches = by_name.get(normalized, [])
         if len(matches) != 1 or matches[0].version != version:
             return False
     assignments = {}
