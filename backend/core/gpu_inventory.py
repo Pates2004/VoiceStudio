@@ -6,7 +6,7 @@ The two disagree on the commonest broken host (an AMD card + the NVIDIA-CUDA
 torch wheel the Windows installer ships), and the gap between them is the
 explanation.
 
-Contract (same as ``device_caps``): never raises, no network, **no subprocess**
+Default advisory contract: never raises, no network, **no subprocess**
 and no torch import — a registry read on Windows, a sysfs read on Linux — so it
 is safe to call from the cold-start probe. macOS returns ``()`` (Apple Silicon
 is reported through torch MPS, and Intel Macs have no accelerated path anyway).
@@ -81,14 +81,17 @@ def _vram_from_registry(value) -> float:
         return 0.0
 
 
-def _read_windows(winreg) -> tuple[HostGPU, ...]:
+def _read_windows(winreg, *, require_complete=False) -> tuple[HostGPU, ...]:
+    """Read adapters, refusing incomplete identity reads when provisioning."""
     gpus: list[HostGPU] = []
     with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _WIN_DISPLAY_CLASS) as cls:
         index = 0
         while True:
             try:
                 sub = winreg.EnumKey(cls, index)
-            except OSError:
+            except OSError as exc:
+                if require_complete and getattr(exc, "winerror", None) != 259:
+                    raise
                 break
             index += 1
             if not sub.isdigit():
@@ -100,9 +103,13 @@ def _read_windows(winreg) -> tuple[HostGPU, ...]:
                         try:
                             return winreg.QueryValueEx(key, name)[0]
                         except OSError:
+                            if require_complete and name == "MatchingDeviceId":
+                                raise
                             return default
 
                     matching = str(val("MatchingDeviceId"))
+                    if require_complete and not matching.strip():
+                        raise OSError("Graphics adapter identity is unavailable")
                     vendor = _vendor_for(_vendor_id_from_matching(matching))
                     if vendor is None:
                         continue  # Basic Display, Hyper-V, remote-desktop adapters
@@ -116,6 +123,8 @@ def _read_windows(winreg) -> tuple[HostGPU, ...]:
                         discrete=vram >= 2,
                     ))
             except OSError:
+                if require_complete:
+                    raise
                 continue
     return tuple(gpus)
 
@@ -159,21 +168,26 @@ def _read_linux(drm_root: str = _LINUX_DRM) -> tuple[HostGPU, ...]:
 
 
 @functools.lru_cache(maxsize=1)
-def detect_host_gpus() -> tuple[HostGPU, ...]:
-    """Every PCI GPU from AMD/NVIDIA/Intel the OS knows about. Never raises.
+def detect_host_gpus(*, require_complete=False) -> tuple[HostGPU, ...]:
+    """Every PCI GPU from AMD/NVIDIA/Intel the OS knows about; advisory by default.
 
     ``OMNIVOICE_DISABLE_GPU_INVENTORY=1`` returns ``()`` - the test suite sets it
-    so a developer's own GPUs never change what a routing test resolves."""
+    so a developer's own GPUs never change what a routing test resolves.
+    Windows provisioning requests complete identification and propagates registry
+    failures instead of treating an advisory partial result as an install choice.
+    """
     if os.environ.get("OMNIVOICE_DISABLE_GPU_INVENTORY", "").strip() in ("1", "true"):
         return ()
     try:
         if sys.platform == "win32":
             import winreg  # type: ignore[import-not-found]
 
-            return _read_windows(winreg)
+            return _read_windows(winreg, require_complete=require_complete)
         if sys.platform.startswith("linux"):
             return _read_linux()
     except Exception:  # noqa: BLE001 - inventory is advisory, never fatal
+        if require_complete:
+            raise
         pass
     return ()
 

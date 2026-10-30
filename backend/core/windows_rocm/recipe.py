@@ -26,13 +26,21 @@ _RDNA2_PCI_IDS = {
 RECIPE_PATH = Path(__file__).resolve().parents[3] / "scripts" / "windows-rocm-recipe.json"
 
 
-def detected_rdna2_arch():
+def detected_rdna2_arch(*, require_complete=False):
     """Select the native overlay from PCI metadata, before Torch is installed."""
     if sys.platform != "win32":
         return None
     from ..gpu_inventory import detect_host_gpus
 
-    amd = [gpu for gpu in detect_host_gpus() if gpu.vendor == "amd"]
+    try:
+        gpus = detect_host_gpus(require_complete=True) if require_complete else detect_host_gpus()
+    except OSError as exc:
+        raise VerificationFailure("unsupported_gpu", "Cannot identify all AMD GPUs safely for Windows ROCm setup") from exc
+    amd = [gpu for gpu in gpus if gpu.vendor == "amd"]
+    if require_complete and (not amd or any(
+        not re.fullmatch(r"[0-9a-f]{4}", gpu.pci_device_id.lower().removeprefix("0x")) for gpu in amd
+    )):
+        raise VerificationFailure("unsupported_gpu", "Cannot identify all AMD GPUs safely for Windows ROCm setup")
     arches = [next((arch for arch, ids in _RDNA2_PCI_IDS.items()
                     if gpu.pci_device_id.lower().removeprefix("0x") in ids), None) for gpu in amd]
     found = {arch for arch in arches if arch}
@@ -57,8 +65,12 @@ def _validate_artifacts(section):
             raise RuntimeError(f"Windows ROCm recipe has no valid sha256 for {name}")
 
 
-def load_recipe(path=None, *, architecture=None):
-    """Load, validate, and select an overlay without network or native imports."""
+def load_recipe(path=None, *, architecture=None, for_install=False):
+    """Load an overlay; provisioning requires complete GPU identification.
+
+    Read-only recipe consumers keep their existing advisory selection behavior.
+    Neither mode performs network access or imports native packages.
+    """
     recipe = json.loads(Path(path or RECIPE_PATH).read_text(encoding="utf-8"))
     if recipe["schema_version"] != 1:
         raise RuntimeError("Unsupported Windows ROCm recipe schema")
@@ -69,7 +81,7 @@ def load_recipe(path=None, *, architecture=None):
     for section in (recipe["torch"], recipe["runtime"], variant["torch"], variant["runtime"],
                     *variant["devices"].values()):
         _validate_artifacts(section)
-    arch = architecture if architecture is not None else detected_rdna2_arch()
+    arch = architecture if architecture is not None else detected_rdna2_arch(require_complete=for_install)
     if arch in variant["devices"]:
         device = variant["devices"][arch]
         common = variant["runtime"]

@@ -97,7 +97,19 @@ def test_companion_native_import_failure_rejects_ready_and_starts_repair(monkeyp
     assert '"ready": true' not in result.stdout
 
     installer = importlib.import_module("core.windows_rocm.install")
+    inventory = importlib.import_module("core.gpu_inventory")
     monkeypatch.setattr(installer, "validate_target", lambda: None)
+    monkeypatch.setattr(inventory, "detect_host_gpus", lambda **kwargs: (
+        inventory.HostGPU(vendor="amd", name="Radeon9070", pci_device_id="7550"),
+    ))
+    versions = installer.expected_versions(installer.load_recipe(architecture="gfx1201"))
+
+    def installed_version(name):
+        if name in versions:
+            return versions[name]
+        raise installer.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(installer.metadata, "version", installed_version)
     # Preserve real verifier behavior at the failed-child boundary.
     monkeypatch.setattr(installer.subprocess, "run", lambda *a, **kw: result)
 

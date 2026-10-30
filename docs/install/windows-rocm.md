@@ -36,7 +36,15 @@ uses ROCm **10.0.0**, Torch **2.13.0+rocm10.0.0**, audio
 the GPU by PCI ID and installs only that architecture's Torch, vision and SDK
 device packages, with native kernels and no `HSA_OVERRIDE_GFX_VERSION`. Mixed
 AMD architectures are refused because selecting the wrong device package
-would be unsafe. Windows ARM64, Windows 10 and other architectures remain
+would be unsafe. Setup also stops before downloads or package changes when GPU
+identification is unavailable or incomplete, preserving the existing environment.
+Repair does not automatically switch an existing ROCm overlay to a different
+release family. Installed HIP Torch and shared SDK metadata must identify that
+family consistently; shared SDK metadata also protects it when Torch is missing.
+Use a clean managed
+runtime to deliberately change families. Additional display-only adapters do not
+require a new compute-support claim.
+Windows ARM64, Windows 10 and other architectures remain
 outside this recipe's scope. A standalone HIP SDK on PATH is insufficient.
 
 ### What setup downloads, and how it is checked

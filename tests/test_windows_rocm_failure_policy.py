@@ -11,6 +11,24 @@ def module(name):
     return importlib.import_module(f"core.windows_rocm.{name}")
 
 
+@pytest.fixture
+def known_gpu(monkeypatch):
+    """Give repair controls a complete supported inventory without reading the host."""
+    inventory = importlib.import_module("core.gpu_inventory")
+    monkeypatch.setattr(inventory, "detect_host_gpus", lambda **kwargs: (
+        inventory.HostGPU(vendor="amd", name="Radeon9070", pci_device_id="7550"),
+    ))
+    install = module("install")
+    versions = install.expected_versions(install.load_recipe(architecture="gfx1201"))
+
+    def installed_version(name):
+        if name in versions:
+            return versions[name]
+        raise install.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(install.metadata, "version", installed_version)
+
+
 @pytest.mark.parametrize(
     "result",
     [
@@ -35,7 +53,7 @@ def test_uncertain_or_device_failure_never_downloads_or_mutates(monkeypatch, res
 
 
 @pytest.mark.parametrize("category", ["package_missing", "package_version", "native_import", "binary_integrity"])
-def test_confirmed_package_failures_enter_checked_repair(monkeypatch, category):
+def test_confirmed_package_failures_enter_checked_repair(monkeypatch, category, known_gpu):
     install = module("install")
     monkeypatch.setattr(install, "validate_target", lambda: None)
     result = subprocess.CompletedProcess(
@@ -97,7 +115,7 @@ def test_probe_cannot_complete_without_downloads(monkeypatch, error):
         install.provision("uv")
 
 
-def test_actual_repair_is_not_ready_if_post_install_verification_fails(monkeypatch):
+def test_actual_repair_is_not_ready_if_post_install_verification_fails(monkeypatch, known_gpu):
     install = module("install")
     failure = module("failures").VerificationFailure
     calls = []

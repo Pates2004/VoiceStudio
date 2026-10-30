@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .artifacts import checked_wheel, download_archive
 from .failures import VerificationFailure, failure_report
-from .recipe import load_recipe, recipe_identity, validate_target
+from .recipe import expected_versions, load_recipe, recipe_identity, validate_target
 from .verify import PROJECT_ROOT, verify_environment
 
 #: Packages the overlay replaces; everything else stays at its installed version.
@@ -84,6 +84,42 @@ def run_install(command):
         raise RuntimeError(f"Windows ROCm package installation failed: {exc}") from exc
 
 
+def _rocm_family(version, *, torch=False):
+    """Read the package's ROCm release family without importing native libraries."""
+    pattern = r"\+rocm(\d+)\.(\d+)" if torch else r"^(\d+)\.(\d+)"
+    match = re.search(pattern, version)
+    return tuple(map(int, match.groups())) if match else None
+
+
+def _check_overlay_family(recipe):
+    """Never convert an existing ROCm family into another during package repair."""
+    selected = _rocm_family(expected_versions(recipe)["torch"], torch=True)
+    if selected is None:
+        raise VerificationFailure("unsupported_gpu", "Cannot identify the selected ROCm overlay family safely")
+    try:
+        version = metadata.version("torch")
+    except metadata.PackageNotFoundError:
+        version = ""
+    existing = _rocm_family(version, torch=True)
+    if "+rocm" in version and existing is None:
+        raise VerificationFailure("unsupported_gpu", "Cannot identify the installed ROCm overlay family safely")
+    families = {existing} if existing is not None else set()
+    for name in ("rocm-sdk-core", "rocm"):
+        try:
+            version = metadata.version(name)
+        except metadata.PackageNotFoundError:
+            continue
+        family = _rocm_family(version)
+        if family is None:
+            raise VerificationFailure("unsupported_gpu", "Cannot identify the installed ROCm overlay family safely")
+        families.add(family)
+    if len(families) > 1:
+        raise VerificationFailure("unsupported_gpu", "Conflicting installed ROCm overlay families; use a clean runtime")
+    existing = next(iter(families), None)
+    if existing is not None and existing != selected:
+        raise VerificationFailure("unsupported_gpu", "Refusing to change the installed ROCm overlay family; use a clean runtime")
+
+
 def provision(uv):
     """Reuse strictly verified installs; repair only confirmed package failures."""
     validate_target()
@@ -92,7 +128,8 @@ def provision(uv):
     except VerificationFailure as exc:
         if not exc.repairable:
             raise
-    recipe = load_recipe()
+    recipe = load_recipe(for_install=True)
+    _check_overlay_family(recipe)
     # Verify CT2 before changing any package, and discard downloads on any failure.
     with tempfile.TemporaryDirectory(prefix="voicestudio-windows-rocm-") as temporary:
         folder = Path(temporary)

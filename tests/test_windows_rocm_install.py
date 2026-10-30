@@ -11,7 +11,19 @@ import pytest
 @pytest.fixture
 def installer(monkeypatch):
     module = importlib.import_module("core.windows_rocm.install")
+    inventory = importlib.import_module("core.gpu_inventory")
     monkeypatch.setattr(module, "validate_target", lambda: None)
+    monkeypatch.setattr(inventory, "detect_host_gpus", lambda **kwargs: (
+        inventory.HostGPU(vendor="amd", name="Radeon9070", pci_device_id="7550"),
+    ))
+    versions = module.expected_versions(module.load_recipe(architecture="gfx1201"))
+
+    def installed_version(name):
+        if name in versions:
+            return versions[name]
+        raise module.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(module.metadata, "version", installed_version)
     return module
 
 
