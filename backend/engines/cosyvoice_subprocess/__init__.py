@@ -118,7 +118,7 @@ class CosyVoiceSubprocessBackend(SubprocessBackend):
             if getattr(self, "_cosyvoice_spawn_device", None) != device:
                 current = self._proc
                 self._send({"op": "shutdown"})
-                self._reap_unusable_process(current)
+                self._reap_unusable_process(current, grace_period_s=3)
                 if not self._retry_timeout_cleanup():
                     raise RuntimeError("CosyVoice is still stopping after a device change")
                 self._proc = None

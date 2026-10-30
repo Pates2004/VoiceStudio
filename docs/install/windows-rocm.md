@@ -212,7 +212,8 @@ acceptance; pyannote speaker diarization remains closed.
 
 See also the [Polish guide](windows-rocm.pl.md).
 
-IndexTTS keeps its Python 3.10/3.11 requirement; CosyVoice keeps Torch 2.7.
+IndexTTS keeps its Python 3.10/3.11 requirement. Default CosyVoice installs keep
+Torch 2.7; the explicitly selected Windows HIP variant uses Torch 2.9.1.
 Default VoxCPM2 installs keep Torch 2.11. A new explicitly opted-in Windows
 ROCm VoxCPM2 install has its own Python 3.12/HIP 7.2.1 recipe and verified
 completion receipt; see [the engine guide](../engines/voxcpm2.md). The main
@@ -356,7 +357,9 @@ cannot advertise HIP readiness. Its upstream I/O namespaces use soundfile for
 local WAV/FLAC/MP3 references, without changing shared TorchAudio or requiring
 TorchCodec DLLs. LLM, flow and HiFT parameters are checked against the selected
 device; ONNX helpers remain on CPU. Source/custom installs and CPU/CUDA/other
-platform recipes are unchanged. Real speech and packaged hardware acceptance
+platform recipes are unchanged. Device changes allow the normal three-second
+graceful shutdown before bounded forced cleanup; a live owner blocks replacement.
+Real speech and packaged hardware acceptance
 remain separate from this model-free setup check. See the
 [CosyVoice guide](../engines/cosyvoice.md#managed-native-windows-amd-variant).
 

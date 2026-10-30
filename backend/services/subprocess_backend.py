@@ -1098,12 +1098,12 @@ class SubprocessBackend(TTSBackend):
                     item for item in self._timeout_quarantine if item is not proc
                 ]
 
-    def _reap_unusable_process(self, proc: Optional[subprocess.Popen]) -> None:
-        """Synchronously retire a sidecar whose protocol pipe is unusable."""
+    def _reap_unusable_process(self, proc: Optional[subprocess.Popen], *, grace_period_s: float = 0.25) -> None:
+        """Retire the captured sidecar within a bounded grace period."""
         if proc is None:
             return
         try:
-            proc.wait(timeout=0.25)
+            proc.wait(timeout=grace_period_s)
         except Exception:
             try:
                 proc.kill()

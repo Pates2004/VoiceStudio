@@ -474,7 +474,7 @@ def test_variant_only_change_reaps_captured_cpu_worker_before_gpu_spawn(installe
     instance._proc = None
     calls = spawn_boundary(monkeypatch)
     monkeypatch.setattr(instance, "_send", lambda message: calls.append(("send", message)))
-    monkeypatch.setattr(instance, "_reap_unusable_process", lambda process: calls.append(("reap", process)))
+    monkeypatch.setattr(instance, "_reap_unusable_process", lambda process, **kwargs: calls.append(("reap", process)))
     monkeypatch.setattr(instance, "_retry_timeout_cleanup", lambda: True)
     instance._spawn()
     old_worker = instance._proc
@@ -549,7 +549,7 @@ def test_device_change_retires_only_captured_owned_worker_before_respawn(monkeyp
         "VOICESTUDIO_COSYVOICE_ROCM_CHECKOUT": "managed", "OMNIVOICE_DEVICE": "cpu",
     })
     monkeypatch.setattr(instance, "_send", lambda message: calls.append(message))
-    monkeypatch.setattr(instance, "_reap_unusable_process", lambda process: calls.append(process))
+    monkeypatch.setattr(instance, "_reap_unusable_process", lambda process, **kwargs: calls.append(process))
     monkeypatch.setattr(instance, "_retry_timeout_cleanup", lambda: True)
     monkeypatch.setattr(SubprocessBackend, "_spawn", lambda self, **kwargs: calls.append("spawn"))
     instance._spawn()
@@ -569,12 +569,64 @@ def test_device_change_cannot_discard_an_unclosed_owner(monkeypatch):
         "VOICESTUDIO_COSYVOICE_ROCM_CHECKOUT": "managed", "OMNIVOICE_DEVICE": "cpu",
     })
     monkeypatch.setattr(instance, "_send", lambda message: None)
-    monkeypatch.setattr(instance, "_reap_unusable_process", lambda process: None)
+    monkeypatch.setattr(instance, "_reap_unusable_process", lambda process, **kwargs: None)
     monkeypatch.setattr(instance, "_retry_timeout_cleanup", lambda: False)
     monkeypatch.setattr(SubprocessBackend, "_spawn", lambda self, **kwargs: pytest.fail("must not replace live owner"))
     with pytest.raises(RuntimeError, match="still stopping"):
         instance._spawn()
     assert instance._proc is current
+
+
+def test_device_change_gives_a_healthy_real_process_its_normal_shutdown_budget(monkeypatch, tmp_path):
+    import subprocess
+    import threading
+    import time
+
+    from engines.cosyvoice_subprocess import CosyVoiceSubprocessBackend
+    from services.subprocess_backend import SubprocessBackend
+
+    ready = tmp_path / "shutdown-ready"
+    script = (
+        "import sys,time; from pathlib import Path; "
+        "Path(sys.argv[1]).write_text('ready'); "
+        "sys.stdin.buffer.read(1); time.sleep(0.7)"
+    )
+    current = subprocess.Popen(
+        [sys.executable, "-I", "-B", "-c", script, str(ready)],
+        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while not ready.exists() and current.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert ready.exists(), "The inert child did not reach its shutdown wait"
+        instance = CosyVoiceSubprocessBackend.__new__(CosyVoiceSubprocessBackend)
+        instance._proc = current
+        instance._cosyvoice_spawn_device = "cuda"
+        instance._timeout_quarantine = []
+        instance._timeout_quarantine_lock = threading.Lock()
+        monkeypatch.setattr(instance, "_child_environment", lambda: {
+            "VOICESTUDIO_COSYVOICE_ROCM_CHECKOUT": "managed", "OMNIVOICE_DEVICE": "cpu",
+        })
+
+        def shutdown(message):
+            assert message == {"op": "shutdown"}
+            current.stdin.write(b"x")
+            current.stdin.flush()
+
+        monkeypatch.setattr(instance, "_send", shutdown)
+        replacements = []
+        monkeypatch.setattr(SubprocessBackend, "_spawn", lambda self, **kwargs: replacements.append(current.returncode))
+        instance._spawn()
+        assert current.returncode == 0, "A healthy delayed shutdown was force-stopped"
+        assert replacements == [0], "Replacement must follow the original process's natural exit"
+        assert not instance._timeout_quarantine
+    finally:
+        if current.poll() is None:
+            current.kill()
+        current.wait(timeout=5)
+        current.stdin.close()
 
 
 @pytest.mark.parametrize("bad", [None, "llm", "flow", "hift"])

@@ -71,6 +71,9 @@ Stary marker CPU nie dopuszcza HIP. Adapter soundfile działa tylko w modułach
 wejścia CosyVoice dla lokalnych WAV/FLAC/MP3, bez globalnej podmiany TorchAudio
 i bez wymogu DLL TorchCodec. LLM, flow i HiFT muszą używać zadeklarowanego
 urządzenia; pomocnicze ONNX pozostają na CPU. Jawny wybór CPU jest respektowany.
+Zmiana urządzenia daje procesowi standardowe trzy sekundy na zwykłe zamknięcie
+przed ograniczonym czasowo wymuszonym sprzątaniem; nadal żywy proces blokuje
+uruchomienie jego następcy.
 Kontrola bez wag nie zastępuje syntezy ani kwalifikacji nowego pakietu na sprzęcie.
 
 Zdrowa istniejąca instalacja CosyVoice CP310/Torch2.7 na CPU pozostaje dostępna

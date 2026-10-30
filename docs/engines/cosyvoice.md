@@ -94,7 +94,9 @@ The pinned upstream reference and dataset loaders use a local soundfile adapter
 inside their own module namespaces, preserving shared TorchAudio. This avoids
 requiring TorchCodec's FFmpeg DLLs for WAV/FLAC/MP3 prompts. LLM, flow and HiFT
 parameters must match the selected device; the ONNX speaker/tokenizer helpers
-remain on CPU. A model-free setup result is separate from real speech generation
+remain on CPU. Device changes allow the normal three-second graceful shutdown
+before bounded forced cleanup; a retained live owner blocks replacement.
+A model-free setup result is separate from real speech generation
 and does not certify other cards, operating systems or gated pipelines.
 
 ## Source builds and existing installations
