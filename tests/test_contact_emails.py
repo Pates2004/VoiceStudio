@@ -1,8 +1,10 @@
-"""VoiceStudio publishes exactly three contact addresses (owner-set 2026-10-02).
+"""VoiceStudio publishes exactly four contact addresses (owner-set 2026-10-02;
+sponsor@ added by the owner in #3674, 2026-10-29).
 
     hi@voicestudio.sh        general, business, licensing, collaboration
-    partner@voicestudio.sh   brand and company partnerships
+    partner@voicestudio.sh   brand and company partnerships, sponsor receipts
     security@voicestudio.sh  vulnerability reports
+    sponsor@voicestudio.sh   sponsorship inquiries
 
 Any other real address in a shipped file (docs, UI, locales, package metadata,
 legal text) is a stale or personal contact. Tests and fixtures may use
@@ -20,7 +22,12 @@ import pytest
 
 _MODULE = sys.modules[__name__]
 _REPO = Path(__file__).resolve().parents[1]
-_CONTACTS = {"hi@voicestudio.sh", "partner@voicestudio.sh", "security@voicestudio.sh"}
+_CONTACTS = {
+    "hi@voicestudio.sh",
+    "partner@voicestudio.sh",
+    "security@voicestudio.sh",
+    "sponsor@voicestudio.sh",
+}
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 _RESERVED_DOMAIN = re.compile(r"(^|\.)(example\.(com|net|org)|example|test|invalid|localhost|local)$", re.I)
 # GitHub no-reply commit addresses are identities, not contact addresses.
@@ -63,7 +70,7 @@ def test_only_project_contact_addresses_are_published():
                     or _TEST_PATH.search(name)):
                 continue
             stray.append(f"{name}: {address}")
-    assert not stray, "Use hi@, partner@ or security@voicestudio.sh:\n" + "\n".join(stray)
+    assert not stray, "Use hi@, partner@, security@ or sponsor@voicestudio.sh:\n" + "\n".join(stray)
 
 
 @pytest.mark.parametrize("gitlink_is_directory", [True, False])
@@ -122,7 +129,7 @@ def test_real_source_contacts_are_rejected(name, monkeypatch):
 
 
 @pytest.mark.parametrize("name, text", [
-    ("README.md", "HI@voicestudio.sh partner@voicestudio.sh security@voicestudio.sh"),
+    ("README.md", "HI@voicestudio.sh partner@voicestudio.sh security@voicestudio.sh sponsor@voicestudio.sh"),
     ("docs/install/windows.md", "author@example.org 12345+author@users.noreply.github.com"),
     ("tests/test_fixture.py", "fixture@voicestudio.sh"),
     ("mobile/ios/VoiceStudio/Resources/NativeLicences/library.txt", "copyright@vendor.sh"),
