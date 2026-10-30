@@ -479,7 +479,10 @@ class SubprocessBackend(TTSBackend):
 
     # ── lifecycle ──────────────────────────────────────────────────────────
 
-    def _spawn(self) -> None:
+    def _child_environment(self) -> dict[str, str]:
+        return os.environ.copy()
+
+    def _spawn(self, *, environment: dict[str, str] | None = None) -> None:
         """Launch the sidecar if not already running. Blocks on the ready
         handshake. Caller must hold self._lock."""
         if not self._retry_timeout_cleanup():
@@ -497,7 +500,7 @@ class SubprocessBackend(TTSBackend):
         #     HF_HUB_CACHE.
         #   - PYTHONUNBUFFERED=1 keeps the sidecar's stdout from buffering
         #     past our length-prefix reads.
-        env = os.environ.copy()
+        env = self._child_environment() if environment is None else environment
         env["PYTHONUNBUFFERED"] = "1"
         # Hub clients in sidecars read HF_ENDPOINT at import time. Forward the
         # current download choice only to this child; setting it in the parent

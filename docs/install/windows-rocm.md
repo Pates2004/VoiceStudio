@@ -348,7 +348,23 @@ direct cached wav2vec2 library alignment completed with 18 timed words and an
 observed GPU forward, but does not certify the gated application pipeline.
 Clean Windows, packaged GUI execution and upstream CI remain separate gates.
 
-Explicit main-runtime setup and the managed VoxCPM2 install probe also initialize
+The managed CosyVoice install also has a separate CP312/Torch2.9.1/SDK7.2.1
+variant after explicit ROCm selection. Start it from **Model Catalogue → Engines →
+CosyVoice**; its completion record requires the actual private environment,
+reviewed sources, a native HIP kernel and local prompt decoding. Old CPU markers
+cannot advertise HIP readiness. Its upstream I/O namespaces use soundfile for
+local WAV/FLAC/MP3 references, without changing shared TorchAudio or requiring
+TorchCodec DLLs. LLM, flow and HiFT parameters are checked against the selected
+device; ONNX helpers remain on CPU. Source/custom installs and CPU/CUDA/other
+platform recipes are unchanged. Real speech and packaged hardware acceptance
+remain separate from this model-free setup check. See the
+[CosyVoice guide](../engines/cosyvoice.md#managed-native-windows-amd-variant).
+
+A healthy existing managed CosyVoice CPU installation stays available as a CPU
+fallback when the main runtime switches to Auto or ROCm. It is not invalidated or
+reinstalled by that change; only an explicit reinstall replaces its environment.
+
+Explicit main-runtime setup and the managed VoxCPM2 and CosyVoice install probes also initialize
 the pinned SDK development archive through AMD's own API. The explicit Windows
 ROCm VoxCPM2 setup probe has a ten-minute limit for first-time SDK expansion,
 native imports and a verified GPU kernel; ordinary import probes retain their

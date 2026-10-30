@@ -294,6 +294,38 @@ def _voxcpm2_windows_rocm(spec: SidecarSpec) -> bool:
     )
 
 
+def _cosyvoice_windows_rocm(spec: SidecarSpec) -> bool:
+    return (
+        spec.engine_id == "cosyvoice" and sys.platform == "win32"
+        and os.environ.get("OMNIVOICE_TORCH_VARIANT", "").strip().lower() == "rocm"
+        and os.environ.get("OMNIVOICE_DEVICE", "").strip().lower() != "cpu"
+    )
+
+
+def _windows_rocm_sidecar(spec: SidecarSpec):
+    if _voxcpm2_windows_rocm(spec):
+        from core.windows_rocm import voxcpm2
+
+        return voxcpm2
+    if _cosyvoice_windows_rocm(spec):
+        from core.windows_rocm import cosyvoice
+
+        return cosyvoice
+    return None
+
+
+def _validate_windows_rocm_target(spec: SidecarSpec) -> None:
+    if _voxcpm2_windows_rocm(spec):
+        _validate_voxcpm2_windows_rocm_target(spec)
+        return
+    support = _windows_rocm_sidecar(spec)
+    support.validate_host()
+    checkout = managed_checkout(spec)
+    if (checkout.resolve() != managed_root(spec).resolve() / spec.checkout_dirname
+            or (checkout / ".venv").resolve() != checkout.resolve() / ".venv"):
+        raise _StepError("invalid_report", "docs/install/windows-rocm.md")
+
+
 def _validate_voxcpm2_windows_rocm_target(spec: SidecarSpec) -> None:
     from core.windows_rocm.voxcpm2 import validate_host
 
@@ -315,6 +347,20 @@ def voxcpm2_rocm_verified() -> bool:
     env_dir = os.environ.get(spec.env_var)
     return bool(
         sys.platform == "win32" and env_dir and Path(env_dir) == checkout
+        and read_verified_install(checkout) is not None
+    )
+
+
+def cosyvoice_rocm_verified() -> bool:
+    from core.windows_rocm.cosyvoice import read_verified_install
+
+    spec = SPECS["cosyvoice"]
+    checkout = managed_checkout(spec)
+    return bool(
+        sys.platform == "win32" and os.environ.get(spec.env_var)
+        and Path(os.environ[spec.env_var]) == checkout
+        and checkout.resolve() == managed_root(spec).resolve() / spec.checkout_dirname
+        and (checkout / ".venv").resolve() == checkout.resolve() / ".venv"
         and read_verified_install(checkout) is not None
     )
 
@@ -447,6 +493,10 @@ def _in_app_env(module: str) -> Callable[[], bool]:
         except (ImportError, ValueError):
             return False
     return probe
+
+
+def _cosyvoice_installed() -> bool:
+    return engine_venv_python("OMNIVOICE_COSYVOICE_DIR") is not None or _in_app_env("cosyvoice")()
 
 
 # The trimmed CosyVoice requirements ship with the app (see that file for
@@ -760,7 +810,7 @@ SPECS: dict[str, SidecarSpec] = {
         required_bytes=14 * _GIB,
         weights_bytes=6 * _GIB,
         dependency_bytes=7 * _GIB,
-        installed_probe=_in_app_env("cosyvoice"),
+        installed_probe=_cosyvoice_installed,
         host_supported=_no_intel_mac(
             "CosyVoice 3 needs a PyTorch version that has no Intel Mac build."
         ),
@@ -1284,6 +1334,15 @@ def _healthy(spec: SidecarSpec) -> bool:
 def _install_marker_valid(spec: SidecarSpec, checkout: Path) -> bool:
     """Share the completion verdict between inventory and runtime selection."""
     marker = checkout / _INSTALL_COMPLETE_MARKER
+    if spec.engine_id == "cosyvoice":
+        from core.windows_rocm.cosyvoice import read_verified_install
+
+        try:
+            lines = marker.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeError):
+            return False
+        if len(lines) > 1 and lines[1].startswith("windows-rocm-cosyvoice-"):
+            return read_verified_install(checkout) is not None
     if spec.engine_id == "voxcpm2":
         from core.windows_rocm.voxcpm2 import read_verified_install
 
@@ -1456,6 +1515,8 @@ def _run_install(spec: SidecarSpec, job: dict) -> None:
 
 
 def _step_preflight(spec: SidecarSpec, job: dict) -> None:
+    if _cosyvoice_windows_rocm(spec):
+        _validate_windows_rocm_target(spec)
     if _locate_uv() is None:
         raise _StepError(
             "uv was not found (checked the bundled path via OMNIVOICE_BUNDLED_UV, "
@@ -1682,7 +1743,7 @@ def _safe_extract_members(tf: "tarfile.TarFile", dest: str) -> None:
 
 
 def _existing_venv_compatible(spec: SidecarSpec, py: Path) -> bool:
-    accepted = ("3.12",) if _voxcpm2_windows_rocm(spec) else spec.compatible_python
+    accepted = ("3.12",) if _windows_rocm_sidecar(spec) else spec.compatible_python
     if not accepted:
         return True
     try:
@@ -1713,8 +1774,8 @@ def _existing_venv_compatible(spec: SidecarSpec, py: Path) -> bool:
 
 
 def _step_create_venv(spec: SidecarSpec, job: dict) -> None:
-    if _voxcpm2_windows_rocm(spec):
-        _validate_voxcpm2_windows_rocm_target(spec)
+    if _windows_rocm_sidecar(spec):
+        _validate_windows_rocm_target(spec)
     step = _job_step(job, "create_venv")
     checkout = managed_checkout(spec)
     venv_dir = checkout / ".venv"
@@ -1741,7 +1802,7 @@ def _step_create_venv(spec: SidecarSpec, job: dict) -> None:
     # uv_subprocess_env. The cache parent is the shared engines root, so
     # every sidecar engine reuses one cache.
     uv_env = uv_subprocess_env(Path(get_engines_dir(DATA_DIR)))
-    venv_args = ("--python", "3.12") if _voxcpm2_windows_rocm(spec) else spec.venv_args
+    venv_args = ("--python", "3.12") if _windows_rocm_sidecar(spec) else spec.venv_args
     rc = _run_logged(job, [uv, "venv", str(venv_dir), *venv_args],
                      timeout=_UV_VENV_TIMEOUT_S, env=uv_env)
     if rc != 0 or not py.is_file():
@@ -1761,8 +1822,9 @@ def _step_install_deps(spec: SidecarSpec, job: dict) -> None:
     (e.g. transformers<5) inside ITS venv, never touching the parent app.
     Idempotent: re-running repairs a partial dependency set.
     """
-    if _voxcpm2_windows_rocm(spec):
-        _validate_voxcpm2_windows_rocm_target(spec)
+    support = _windows_rocm_sidecar(spec)
+    if support:
+        _validate_windows_rocm_target(spec)
     checkout = managed_checkout(spec)
     py = _venv_python(checkout / ".venv")
     # A reinstall that fails must not leave the previous run's marker.
@@ -1778,6 +1840,8 @@ def _step_install_deps(spec: SidecarSpec, job: dict) -> None:
         from core.windows_rocm.voxcpm2 import install_arguments
 
         target = install_arguments()
+    elif _cosyvoice_windows_rocm(spec):
+        target += support.install_arguments()
     elif _rocm_index_url() and spec.uses_rocm_index:
         target += _rocm_pin_args()
     elif spec.torch_pins:
@@ -1793,7 +1857,7 @@ def _step_install_deps(spec: SidecarSpec, job: dict) -> None:
     job.pop("_last_run_output", None)
     install_env = uv_subprocess_env(Path(get_engines_dir(DATA_DIR)))
     command = [uv, "pip", "install", "--python", str(py), *target]
-    if _voxcpm2_windows_rocm(spec):
+    if support:
         command.insert(1, "--no-config")
         for variable in (
             "UV_CONSTRAINT", "UV_BUILD_CONSTRAINT", "UV_OVERRIDE", "PIP_CONSTRAINT", "UV_NO_VERIFY_HASHES"
@@ -1848,6 +1912,25 @@ def _step_verify(spec: SidecarSpec, job: dict) -> None:
             if spec.probe_code
             else f"import {spec.probe_module}"
         )
+        if _cosyvoice_windows_rocm(spec):
+            from core.windows_rocm import cosyvoice
+
+            _validate_windows_rocm_target(spec)
+            environment = cosyvoice.child_environment(os.environ, checkout)
+            environment.update(HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
+            rc = _run_logged(job, [str(py), "-I", str(Path(cosyvoice.__file__).resolve()), str(checkout)],
+                             timeout=_WINDOWS_ROCM_PROBE_TIMEOUT_S, env=environment)
+            output = "\n".join(job.get("_last_run_output", ()))
+            if rc != 0:
+                raise _StepError("native_runtime", spec.docs_path)
+            try:
+                report = json.loads(output.strip().splitlines()[-1])
+                text = cosyvoice.marker_text(report, py)
+            except (OSError, UnicodeError, ValueError, TypeError, KeyError, IndexError, AttributeError, RuntimeError) as error:
+                raise _StepError("invalid_report", spec.docs_path) from error
+            _write_install_marker(checkout, text)
+            _job_step(job, "verify")["detail"] = "CosyVoice HIP environment and local audio verified"
+            return
         if _voxcpm2_windows_rocm(spec):
             from core.windows_rocm import voxcpm2
 

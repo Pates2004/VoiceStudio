@@ -57,6 +57,27 @@ Zarejestrowany profil wymaga:
   i MIOpen. Dotychczasowy tryb aplikacji `FAST` jest dozwolony. Wyłączenie dyskowej
   pamięci MIOpen nie potwierdza zgodności SDK ani ścieżek tymczasowych Unicode.
 
+## Zarządzany CosyVoice
+
+Po jawnym wyborze ROCm rozpocznij instalację w **Model Catalogue → Engines →
+CosyVoice**. Osobne środowisko używa CP312, Torch2.9.1 i SDK7.2.1; zachowuje
+przejrzane piny zależności z poprawkami bezpieczeństwa. PyWORLD nadal wymaga
+istniejących narzędzi C++. Pozostałe receptury CPU/CUDA/Linux/macOS i własne
+instalacje źródłowe zachowują dotychczasowe działanie.
+
+Aktualny marker jest publikowany atomowo po kontroli interpretera, pakietów,
+przypiętych źródeł, rzeczywistego kernela HIP i lokalnego nagrania wzorcowego.
+Stary marker CPU nie dopuszcza HIP. Adapter soundfile działa tylko w modułach
+wejścia CosyVoice dla lokalnych WAV/FLAC/MP3, bez globalnej podmiany TorchAudio
+i bez wymogu DLL TorchCodec. LLM, flow i HiFT muszą używać zadeklarowanego
+urządzenia; pomocnicze ONNX pozostają na CPU. Jawny wybór CPU jest respektowany.
+Kontrola bez wag nie zastępuje syntezy ani kwalifikacji nowego pakietu na sprzęcie.
+
+Zdrowa istniejąca instalacja CosyVoice CP310/Torch2.7 na CPU pozostaje dostępna
+jako CPU fallback po zmianie głównego środowiska na Auto lub ROCm. Sam wybór
+nie unieważnia jej markera ani nie rozpoczyna ponownej instalacji. Wymiana
+środowiska wymaga jawnej reinstalacji; własne kopie źródłowe zachowują swój kontrakt.
+
 ## Zakres dowodów i ograniczenia
 
 Produkcyjny backend przetestowano na RX 9070 XT z niezmienionym domyślnym modelem

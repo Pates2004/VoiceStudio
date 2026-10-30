@@ -1,10 +1,8 @@
 """Standalone, model-free Windows HIP checks for the private VoxCPM2 venv."""
 
-import ast
 import contextlib
 import hashlib
 import json
-import os
 import re
 import sys
 import sysconfig
@@ -16,6 +14,18 @@ RECIPE_PATH = Path(__file__).resolve().parents[3] / "scripts/windows-rocm-recipe
 MARKER_REVISION = "windows-rocm-voxcpm2-v1"
 MARKER_NAME = ".voicestudio_install_complete"
 _SHARED_RUNTIME = None
+_SHARED_SIDECAR = None
+
+
+def _shared_sidecar():
+    global _SHARED_SIDECAR
+    if _SHARED_SIDECAR is None:
+        specification = util.spec_from_file_location(
+            "_voxcpm2_shared_windows_rocm_sidecar", Path(__file__).with_name("sidecar.py"),
+        )
+        _SHARED_SIDECAR = util.module_from_spec(specification)
+        specification.loader.exec_module(_SHARED_SIDECAR)
+    return _SHARED_SIDECAR
 
 
 def load_recipe() -> dict:
@@ -63,28 +73,11 @@ def validate_host() -> None:
 
 
 def validate_report(report: dict, python: Path) -> dict:
-    recipe = load_recipe()
-    if not isinstance(report, dict):
-        raise RuntimeError("invalid_report")
-    executable = report.get("python")
-    requirements = (
-        report.get("ready") is True,
-        report.get("scope") == "voxcpm2-model-free",
-        isinstance(executable, str) and os.path.normcase(os.path.abspath(executable))
-        == os.path.normcase(os.path.abspath(python)),
-        report.get("architecture") == recipe["python"]["platform"],
-        report.get("abi") == recipe["python"]["abi"],
-        report.get("recipe_sha256") == recipe_identity(),
-        report.get("packages") == expected_versions(),
-        isinstance(report.get("hip"), str) and report["hip"].startswith(recipe["torch"]["hip_prefix"]),
-        report.get("torch_gpu") is True,
-        isinstance(report.get("gpu_architecture"), str)
-        and report["gpu_architecture"] in recipe["gpu_architectures"],
-        type(report.get("kernel_result")) in (int, float) and report["kernel_result"] == 4.0,
-        report.get("kernel_device") == "cuda",
-        report.get("voxcpm_device") == "cuda",
+    _shared_sidecar().validate_gpu_report(
+        report, python, scope="voxcpm2-model-free", recipe=load_recipe(),
+        recipe_sha256=recipe_identity(), packages=expected_versions(),
     )
-    if not all(requirements):
+    if report.get("voxcpm_device") != "cuda":
         raise RuntimeError("invalid_report")
     return report
 
@@ -104,33 +97,7 @@ def read_verified_install(checkout: Path) -> dict | None:
         if not python.is_file():
             return None
         report = validate_report(json.loads(lines[2]), python)
-        configuration = (checkout / ".venv/pyvenv.cfg").read_text(encoding="utf-8")
-        settings = dict(line.split("=", 1) for line in configuration.splitlines() if "=" in line)
-        versions = {key.strip(): value.strip() for key, value in settings.items()}
-        python_version = versions.get("version_info", versions.get("version", ""))
-        if re.fullmatch(r"3[.]12(?:[.][0-9]+)?", python_version) is None:
-            return None
-        packages = checkout / ".venv/Lib/site-packages"
-        distributions = list(metadata.distributions(path=[str(packages)]))
-        for name, version in expected_versions().items():
-            matches = [distribution for distribution in distributions
-                       if str((distribution.metadata or {}).get("Name", "")).lower().replace("_", "-") == name]
-            if len(matches) != 1 or matches[0].version != version:
-                return None
-        assignments = {}
-        for statement in ast.parse((packages / "torch/version.py").read_text(encoding="utf-8")).body:
-            if isinstance(statement, ast.Assign):
-                targets, value = statement.targets, statement.value
-            elif isinstance(statement, ast.AnnAssign):
-                targets, value = [statement.target], statement.value
-            else:
-                continue
-            for target in targets:
-                if isinstance(target, ast.Name) and target.id in {"__version__", "hip"}:
-                    assignments[target.id] = ast.literal_eval(value)
-        if assignments.get("__version__") != expected_versions()["torch"]:
-            return None
-        if assignments.get("hip") != report["hip"]:
+        if not _shared_sidecar().environment_matches(checkout, expected_versions(), report["hip"]):
             return None
         return report
     except (OSError, UnicodeError, ValueError, SyntaxError, TypeError, KeyError, RuntimeError):
