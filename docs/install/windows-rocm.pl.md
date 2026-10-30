@@ -85,6 +85,16 @@ jako CPU fallback po zmianie głównego środowiska na Auto lub ROCm. Sam wybór
 nie unieważnia jej markera ani nie rozpoczyna ponownej instalacji. Wymiana
 środowiska wymaga jawnej reinstalacji; własne kopie źródłowe zachowują swój kontrakt.
 
+## Wagi znaku wodnego w trybie offline
+
+Przy `HF_HUB_OFFLINE=1` lub `TRANSFORMERS_OFFLINE=1` AudioSeal najpierw sprawdza
+lokalny plik wybrany przez zainstalowaną kartę modelu. Wstępne wczytywanie
+rozpoznaje rzeczywistą nazwę cache; same wagi detektora nie wystarczają dla
+generatora. Brak pliku pomija konstruktor pobierający wagi i zachowuje
+dotychczasowe ostrzeżenie oraz fallback, więc nagranie może nie zawierać
+niewidocznego znaku wodnego. AudioSeal używa dotychczasowych domyślnych
+konstruktorów CPU. Te zasady cache dotyczą także pozostałych wspieranych platform.
+
 ## Zakres dowodów i ograniczenia
 
 Produkcyjny backend przetestowano na RX 9070 XT z niezmienionym domyślnym modelem

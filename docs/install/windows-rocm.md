@@ -395,6 +395,16 @@ or reinstalling the overlay. CLI diagnostics include a bounded failure category;
 correct the reported host problem before retrying. A successful package repair
 must still pass the complete model-free GPU verification.
 
+## Offline watermark checkpoints
+
+With `HF_HUB_OFFLINE=1` or `TRANSFORMERS_OFFLINE=1`, AudioSeal loading first
+checks the local checkpoint selected by the installed model card. Prefetch uses
+the loader's actual cache filename; a cached detector does not make the generator
+ready. A missing checkpoint skips the downloading constructor and follows the
+existing logged fallback, so generated audio may lack an invisible watermark.
+AudioSeal uses its original CPU constructor defaults. These cache rules also
+apply to the other supported platforms.
+
 ## Maintainer integration
 
 The integration branch preserves the newer native executable compute profiles,
@@ -408,7 +418,8 @@ Review the native recipe/runtime, sidecar receipt/device contract and ordinary
 media fixes as separate units. Keep current security floors and existing CPU or
 user-managed sidecars. Run the SDK, ASR compute-profile, VoxCPM2, sidecar and
 runtime/setup regression groups plus the maintained CI matrix before landing.
-The additional change note is `changelog.d/3486.added.md`, following the fragment workflow.
+The additional change notes are `changelog.d/3486.added.md` and
+`changelog.d/3486-b.fixed.md`, following the fragment workflow.
 
 The accepted base implementation is upstream PR #3045. Review the additional
 changes in these units; do not replace the upstream hash checks, dependency
@@ -424,6 +435,9 @@ constraints, trusted package discovery or failed-probe memoization.
 | Portable execution and recovery | Media helpers, atomic markers, backup handling and native fixture isolation                                     | The corresponding media, sidecar, backup and fixture regression groups, then normal backend/frontend CI                                   |
 
 Keep source tests with the code and repeat the normal CI matrix after integration.
+Include `test_windows_rocm_sidecar_metadata.py` for per-call package indexing
+without admission caching, and `test_watermark_offline_checkpoints.py` plus the
+prefetch lifecycle tests for exact cached-card selection and offline misses.
 Hardware evidence above names the tested GPU and its limits; it does not replace
 Linux/macOS/NVIDIA checks or prove a fresh-Windows installation. A saved GUI
 preference alone also does not establish that the intended runtime was installed.
